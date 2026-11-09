@@ -40,6 +40,7 @@
     "error": {
       "invalid_web_url": "Use the HTTPS URL of the same backup repository.",
       "token_required": "Enter a Forgejo access token.",
+      "release_sso_required": "YunoHost redirects the Forgejo API to its login page. Check the Forgejo API access permission.",
       "release_access": "The token must have write access to the private backup repository."
     }
   }

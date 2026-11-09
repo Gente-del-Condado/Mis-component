@@ -7,7 +7,7 @@ from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, Tex
 
 from . import DOMAIN
 from .providers.forgejo import Forgejo, ForgejoError, generate_key, scan_host, ssh_address
-from .providers.forgejo_releases import ReleaseError, Releases, validate_web_url
+from .providers.forgejo_releases import ReleaseError, Releases, SSORequired, validate_web_url
 
 
 class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -83,8 +83,6 @@ class ForgejoBackupOptions(config_entries.OptionsFlow):
         if user_input is not None:
             web_url = user_input.get("web_url", "").strip()
             token = user_input.get("release_token", "").strip()
-            if web_url == options.get("web_url"):
-                token = token or options.get("release_token", "")
             if not web_url:
                 return self.async_create_entry(data={})
             try:
@@ -92,11 +90,15 @@ class ForgejoBackupOptions(config_entries.OptionsFlow):
             except ReleaseError:
                 errors["web_url"] = "invalid_web_url"
             else:
+                if web_url == options.get("web_url"):
+                    token = token or options.get("release_token", "")
                 if not token:
                     errors["release_token"] = "token_required"
                 else:
                     try:
                         await self.hass.async_add_executor_job(Releases(web_url, token).check)
+                    except SSORequired:
+                        errors["base"] = "release_sso_required"
                     except ReleaseError:
                         errors["base"] = "release_access"
                     else:

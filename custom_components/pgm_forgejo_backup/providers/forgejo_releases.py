@@ -5,7 +5,7 @@ import secrets
 from http import HTTPStatus
 from time import sleep
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 FILE_NAME = "backup.tar"
@@ -20,6 +20,10 @@ class ReleaseError(Exception):
         self.status = status
 
 
+class SSORequired(ReleaseError):
+    """YunoHost exige una sesión de navegador antes de llegar a la API."""
+
+
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         # Un proxy mal configurado no debe reenviar el token ni el archivo a otro servidor.
@@ -30,7 +34,9 @@ def validate_web_url(web_url, ssh_url):
     try:
         web = urlsplit(web_url)
         ssh_path = unquote(urlsplit(ssh_url).path).strip("/").removesuffix(".git")
-        web_path = unquote(web.path).strip("/")
+        web_path = unquote(web.path).rstrip("/").removesuffix(".git")
+        web_parts = web_path.removeprefix("/").split("/")
+        ssh_parts = ssh_path.split("/")
         if (
             web.scheme == "https"
             and web.hostname
@@ -39,9 +45,12 @@ def validate_web_url(web_url, ssh_url):
             and not web.password
             and not web.query
             and not web.fragment
-            and web_path.split("/")[-2:] == ssh_path.split("/")[-2:]
+            and len(ssh_parts) == 2
+            and len(web_parts) >= 2
+            and all(part and part not in {".", ".."} for part in web_parts)
+            and [part.lower() for part in web_parts[-2:]] == [part.lower() for part in ssh_parts]
         ):
-            return web_url.rstrip("/")
+            return urlunsplit(("https", web.netloc, quote(web_path, safe="/"), "", ""))
     except ValueError:
         pass
     raise ReleaseError("Usa la URL HTTPS del mismo repositorio de copias.")
@@ -72,6 +81,11 @@ class Releases:
                     raise ReleaseError("La respuesta de Forgejo es demasiado grande.")
                 return json.loads(raw) if raw else None
         except HTTPError as exc:
+            location = exc.headers.get("Location", "")
+            if 300 <= exc.code < 400 and urlsplit(location).path.rstrip("/") == "/yunohost/sso":
+                raise SSORequired(
+                    "YunoHost redirige la API de Forgejo al inicio de sesión."
+                ) from None
             if missing and exc.code == HTTPStatus.NOT_FOUND:
                 return None
             raise ReleaseError(
