@@ -40,6 +40,7 @@
     "error": {
       "invalid_web_url": "Usa la URL HTTPS del mismo repositorio de copias.",
       "token_required": "Introduce un token de acceso de Forgejo.",
+      "release_sso_required": "YunoHost redirige la API de Forgejo al inicio de sesión. Revisa el permiso de acceso a la API de Forgejo.",
       "release_access": "El token debe tener permiso de escritura en el repositorio privado de copias."
     }
   }
