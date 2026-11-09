@@ -7,5 +7,5 @@
   "documentation": "https://github.com/Gente-del-Condado/HA-Private-Git-Manager/blob/main/FORGEJO_BACKUPS.md",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "version": "0.1.2"
+  "version": "0.1.3"
 }
