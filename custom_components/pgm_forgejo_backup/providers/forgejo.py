@@ -19,6 +19,29 @@ OID = re.compile(r"[0-9a-f]{40,64}")
 HOST = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}")
 
 
+DEFAULT_BRANCH = "refs/heads/main"
+REPOSITORY_README = """# Copias de seguridad de Home Assistant
+
+Este repositorio privado guarda copias con el cifrado nativo de Home Assistant.
+Private Git Manager · Forgejo Backup publica dos etiquetas por copia:
+
+| Etiqueta | Contenido |
+| --- | --- |
+| `pgm-meta-<id>` | Ficha `metadata.json` con fecha, tamaño y huella SHA-256. |
+| `pgm-data-<id>` | Archivo cifrado dividido en fragmentos numerados. |
+
+En Forgejo puedes consultar las etiquetas desde la pestaña Código. Desde
+**Ajustes → Sistema → Copias de seguridad** de Home Assistant puedes descargar o
+restaurar una copia seleccionando la ubicación Forgejo.
+
+Guarda el kit de emergencia de Home Assistant fuera de este repositorio.
+Home Assistant administra la retención. Conserva ambas etiquetas de cada copia
+que quieras mantener.
+
+[Manual de recuperación por SSH](https://gente-del-condado.github.io/HA-Private-Git-Manager/#copias-forgejo)
+"""
+
+
 class ForgejoError(Exception):
     """Error del proveedor con mensaje apto para mostrar."""
 
@@ -208,6 +231,23 @@ class Forgejo:
         tree = git("mktree", data=rows.encode()).decode().strip()
         return git("commit-tree", tree, "-m", "Home Assistant backup").decode().strip()
 
+    def _ensure_readme(self, git):
+        if self._remote_refs(git, "refs/heads/*"):
+            return
+        readme = self._blob(git, REPOSITORY_README.encode())
+        commit = self._commit(git, [(readme, "README.md")])
+        try:
+            # Crea main solo si sigue sin existir, aunque otra subida llegue a la vez.
+            git(
+                "push",
+                f"--force-with-lease={DEFAULT_BRANCH}:",
+                self.url,
+                f"{commit}:{DEFAULT_BRANCH}",
+            )
+        except ForgejoError:
+            if not self._remote_refs(git, "refs/heads/*"):
+                raise
+
     def upload(self, source, metadata):
         if metadata.get("protected") is not True:
             raise ForgejoError("Forgejo solo acepta copias con cifrado nativo.")
@@ -233,6 +273,7 @@ class Forgejo:
             record = {"backup": metadata, "sha256": digest.hexdigest()}
             if remote:
                 if len(remote) == 2 and self._read_record(git, meta, remote[meta]) == record:
+                    self._ensure_readme(git)
                     return
                 raise ForgejoError("Ya existe una copia diferente con el mismo identificador.")
             raw = json.dumps(record, ensure_ascii=True).encode()
@@ -240,6 +281,7 @@ class Forgejo:
                 raise ForgejoError("Los metadatos de la copia superan el límite.")
             meta_commit = self._commit(git, [(self._blob(git, raw), "metadata.json")])
             data_commit = self._commit(git, files)
+            self._ensure_readme(git)
             # El alta es atómica y las referencias solo pueden crearse si todavía no existen.
             git(
                 "push",
