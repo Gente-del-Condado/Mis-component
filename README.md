@@ -1,9 +1,17 @@
 # Mis-component
 
-Catálogo de integraciones de Home Assistant para Private Git Manager.
+![Icono del catálogo](icon.png)
 
-- **Forgejo Backup** añade Forgejo privado como ubicación de las copias nativas de Home Assistant.
+Catálogo de integraciones de Home Assistant Core para **Private Git Manager**.
 
-Añade este repositorio por SSH en Private Git Manager, sincroniza la rama `main` e instala la integración. Reinicia Home Assistant Core y añade **Private Git Manager · Forgejo Backup** en **Ajustes → Dispositivos y servicios**.
+## Instalar o actualizar Forgejo Backup
 
-Consulta el [manual de Forgejo Backup](https://gente-del-condado.github.io/HA-Private-Git-Manager/#copias-forgejo). El código se mantiene en [HA-Private-Git-Manager](https://github.com/Gente-del-Condado/HA-Private-Git-Manager).
+1. En **Repositorios**, añade este catálogo con su URL SSH, rama `main` y una clave de despliegue de lectura. Verifica la huella del servidor y sincroniza.
+2. En **Componentes**, busca **Forgejo Backup**. Pulsa **Instalar integración** o **Actualizar integración**, revisa el commit y confirma.
+3. Reinicia Home Assistant Core. Para el primer uso, añade **Private Git Manager · Forgejo Backup** en **Ajustes → Dispositivos y servicios**.
+
+Forgejo Backup necesita otro repositorio privado para almacenar las copias cifradas. La integración genera su propia clave de despliegue con escritura y mantiene el índice de copias recientes en el README que crea en ese destino.
+
+[Instalar componentes](https://gente-del-condado.github.io/HA-Private-Git-Manager/#componentes) · [Configurar Forgejo Backup y recuperar copias](https://gente-del-condado.github.io/HA-Private-Git-Manager/#copias-forgejo)
+
+El código se mantiene en [HA-Private-Git-Manager](https://github.com/Gente-del-Condado/HA-Private-Git-Manager). El flujo de publicación sincroniza la integración desde allí.
