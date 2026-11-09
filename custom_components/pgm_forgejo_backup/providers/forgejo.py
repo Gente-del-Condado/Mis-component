@@ -12,6 +12,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from .forgejo_releases import ReleaseError
 
 CHUNK_SIZE = 16 * 1024**2
 MAX_SIZE = 8 * 1024**3
@@ -135,11 +138,16 @@ def scan_host(url):
 class Forgejo:
     """Cada copia tiene referencias propias y una ficha ligera para el inventario."""
 
-    def __init__(self, url, private_key, known_host):
+    def __init__(self, url, private_key, known_host, releases=None, *, time_zone="UTC"):
         ssh_address(url)
         self.url = url
         self.private_key = private_key
         self.known_host = known_host
+        self.releases = releases
+        try:
+            self.time_zone = ZoneInfo(time_zone)
+        except (TypeError, ValueError, ZoneInfoNotFoundError):
+            self.time_zone = ZoneInfo("UTC")
 
     @contextmanager
     def _session(self):
@@ -247,22 +255,22 @@ class Forgejo:
     def _date(backup):
         try:
             date = datetime.fromisoformat(backup["date"])
-            return (
-                date.replace(tzinfo=date.tzinfo or UTC)
-                .astimezone(UTC)
-                .strftime("%Y-%m-%d %H:%M:%S")
-            )
+            return date.replace(tzinfo=date.tzinfo or UTC).astimezone(UTC)
         except (KeyError, TypeError, ValueError, OverflowError):
-            return ""
+            return None
 
     def _readme_index(self, git):
-        backups = sorted(self._list(git), key=self._date, reverse=True)[:INDEX_LIMIT]
+        # Ordena por el instante original, incluso si se repite una hora al cambiar el reloj.
+        undated = datetime.min.replace(tzinfo=UTC)
+        backups = sorted(
+            self._list(git), key=lambda backup: self._date(backup) or undated, reverse=True
+        )[:INDEX_LIMIT]
         lines = [INDEX_START, "## Copias recientes", ""]
         if backups:
             lines += [
-                "El ZIP contiene los fragmentos cifrados de una copia. Sigue el manual para unirlos.",
+                "El TAR cifrado se importa directamente. El ZIP contiene fragmentos que puedes recuperar siguiendo el manual.",
                 "",
-                "| Fecha UTC | Copia | Tamaño | Acceso |",
+                f"| Fecha ({self.time_zone.key}) | Copia | Tamaño | Acceso |",
                 "| --- | --- | ---: | --- |",
             ]
         else:
@@ -274,10 +282,26 @@ class Forgejo:
             # Los nombres vienen de los metadatos. Escapa la puntuación para renderizarlos como texto.
             name = "".join(c if c.isalnum() or c == " " else f"&#{ord(c)};" for c in name)
             size = f"{backup['size'] / 1024**2:.2f} MiB"
+            direct = ""
+            if self.releases:
+                try:
+                    if self.releases.available(backup_id, backup["size"]):
+                        direct = f"[Descargar backup.tar](../../../releases/download/pgm-data-{backup_id}/backup.tar) · "
+                except ReleaseError:
+                    _LOGGER.warning("No se pudo consultar el adjunto de una copia en Forgejo")
+            date = self._date(backup)
+            try:
+                displayed = (
+                    date.astimezone(self.time_zone).isoformat(sep=" ", timespec="seconds")
+                    if date
+                    else "—"
+                )
+            except OverflowError:
+                displayed = "—"
             lines.append(
-                f"| {self._date(backup) or '—'} | {name or backup_id} | {size} | "
+                f"| {displayed} | {name or backup_id} | {size} | "
                 f"[Ficha](../../../src/tag/pgm-meta-{backup_id}/metadata.json) · "
-                f"[Descargar ZIP](../../../archive/pgm-data-{backup_id}.zip) |"
+                f"{direct}[Descargar ZIP](../../../archive/pgm-data-{backup_id}.zip) |"
             )
         return "\n".join([*lines, "", INDEX_END, ""])
 
@@ -326,6 +350,14 @@ class Forgejo:
             return
         _LOGGER.warning("El README de Forgejo cambió mientras se actualizaba el índice")
 
+    def _publish_readme(self, git, source, metadata, digest):
+        if self.releases:
+            try:
+                self.releases.upload(metadata["backup_id"], source, metadata["size"], digest)
+            except ReleaseError as exc:
+                _LOGGER.warning("Se conservó la copia por Git. Descarga directa pendiente: %s", exc)
+        self._update_readme(git)
+
     def upload(self, source, metadata):
         if metadata.get("protected") is not True:
             raise ForgejoError("Forgejo solo acepta copias con cifrado nativo.")
@@ -351,7 +383,7 @@ class Forgejo:
             record = {"backup": metadata, "sha256": digest.hexdigest()}
             if remote:
                 if len(remote) == 2 and self._read_record(git, meta, remote[meta]) == record:
-                    self._update_readme(git)
+                    self._publish_readme(git, source, metadata, record["sha256"])
                     return
                 raise ForgejoError("Ya existe una copia diferente con el mismo identificador.")
             raw = json.dumps(record, ensure_ascii=True).encode()
@@ -359,6 +391,9 @@ class Forgejo:
                 raise ForgejoError("Los metadatos de la copia superan el límite.")
             meta_commit = self._commit(git, [(self._blob(git, raw), "metadata.json")])
             data_commit = self._commit(git, files)
+            # La API de lanzamientos requiere que Forgejo haya registrado una primera rama.
+            if self.releases and not self._remote_refs(git, "refs/heads/*"):
+                self._update_readme(git)
             # El alta es atómica y las referencias solo pueden crearse si todavía no existen.
             git(
                 "push",
@@ -369,7 +404,7 @@ class Forgejo:
                 f"{meta_commit}:{meta}",
                 f"{data_commit}:{data}",
             )
-            self._update_readme(git)
+            self._publish_readme(git, source, metadata, record["sha256"])
 
     def _read_record(self, git, ref, oid):
         git("fetch", "--no-tags", "--depth=1", self.url, ref)
@@ -458,6 +493,14 @@ class Forgejo:
     def delete(self, backup_id):
         with self._session() as git:
             meta, data, remote = self._lookup(git, backup_id)
+            if self.releases:
+                record = self._read_record(git, meta, remote[meta])
+                try:
+                    self.releases.delete(backup_id, record["sha256"])
+                except ReleaseError as exc:
+                    raise ForgejoError(
+                        "No se pudo retirar el adjunto de la copia en Forgejo."
+                    ) from exc
             git(
                 "push",
                 "--atomic",
