@@ -17,8 +17,13 @@ async def async_setup_entry(hass, entry):
             listener()
 
     entry.async_on_unload(entry.async_on_state_change(notify_agents))
+    entry.async_on_unload(entry.add_update_listener(_reload_options))
     return True
 
 
 async def async_unload_entry(hass, entry):
     return True
+
+
+async def _reload_options(hass, entry):
+    await hass.config_entries.async_reload(entry.entry_id)

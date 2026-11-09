@@ -2,13 +2,21 @@
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
+from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
 from . import DOMAIN
 from .providers.forgejo import Forgejo, ForgejoError, generate_key, scan_host, ssh_address
+from .providers.forgejo_releases import ReleaseError, Releases, validate_web_url
 
 
 class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return ForgejoBackupOptions()
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -65,4 +73,47 @@ class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "public_key": self._public,
                 "fingerprint": ", ".join(self._hosts),
             },
+        )
+
+
+class ForgejoBackupOptions(config_entries.OptionsFlow):
+    async def async_step_init(self, user_input=None):
+        errors = {}
+        options = self.config_entry.options
+        if user_input is not None:
+            web_url = user_input.get("web_url", "").strip()
+            token = user_input.get("release_token", "").strip()
+            if web_url == options.get("web_url"):
+                token = token or options.get("release_token", "")
+            if not web_url:
+                return self.async_create_entry(data={})
+            try:
+                web_url = validate_web_url(web_url, self.config_entry.data["url"])
+            except ReleaseError:
+                errors["web_url"] = "invalid_web_url"
+            else:
+                if not token:
+                    errors["release_token"] = "token_required"
+                else:
+                    try:
+                        await self.hass.async_add_executor_job(Releases(web_url, token).check)
+                    except ReleaseError:
+                        errors["base"] = "release_access"
+                    else:
+                        return self.async_create_entry(
+                            data={"web_url": web_url, "release_token": token}
+                        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        "web_url", description={"suggested_value": options.get("web_url", "")}
+                    ): str,
+                    vol.Optional("release_token"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+            errors=errors,
         )

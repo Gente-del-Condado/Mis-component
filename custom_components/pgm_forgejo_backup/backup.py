@@ -15,6 +15,7 @@ from homeassistant.core import callback
 
 from . import DOMAIN, LISTENERS
 from .providers.forgejo import MAX_SIZE, Forgejo, ForgejoError, MissingBackup
+from .providers.forgejo_releases import Releases
 
 
 async def async_get_backup_agents(hass, **kwargs):
@@ -40,7 +41,19 @@ class ForgejoBackupAgent(BackupAgent):
         self.hass = hass
         self.name = entry.title
         self.unique_id = entry.entry_id
-        self.provider = Forgejo(entry.data["url"], entry.data["identity"], entry.data["known_host"])
+        options = entry.options
+        releases = (
+            Releases(options["web_url"], options["release_token"])
+            if options.get("web_url")
+            else None
+        )
+        self.provider = Forgejo(
+            entry.data["url"],
+            entry.data["identity"],
+            entry.data["known_host"],
+            releases,
+            time_zone=hass.config.time_zone,
+        )
 
     async def _call(self, function, *args):
         job = self.hass.async_add_executor_job(function, *args)

@@ -4,12 +4,16 @@
       "user": {
         "title": "Repositorio privado de Forgejo",
         "description": "Usa la URL de clonación por SSH de un repositorio privado dedicado a las copias.",
-        "data": {"url": "URL de clonación SSH"}
+        "data": {
+          "url": "URL de clonación SSH"
+        }
       },
       "verify": {
         "title": "Verifica el servidor y autoriza la clave",
         "description": "Compara una de las huellas detectadas `{fingerprint}` con la que te facilite el administrador por un canal de confianza. Introduce abajo la huella de confianza. Añade esta clave pública como clave de despliegue con escritura en el repositorio de copias.\n\n`{public_key}`",
-        "data": {"fingerprint": "Huella SHA256 de confianza"}
+        "data": {
+          "fingerprint": "Huella SHA256 de confianza"
+        }
       }
     },
     "error": {
@@ -18,6 +22,25 @@
       "fingerprint_mismatch": "La huella de confianza no coincide.",
       "cannot_write": "No se pudo acceder al repositorio con esta clave. Comprueba la URL y el permiso de escritura."
     },
-    "abort": {"already_configured": "Ya se ha configurado este repositorio."}
+    "abort": {
+      "already_configured": "Ya se ha configurado este repositorio."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Descarga directa desde la web",
+        "description": "Indica la URL HTTPS del repositorio privado de copias y un token limitado a ese repositorio con write:repository. Deja el token vacío para conservar el guardado para la misma URL. Borra la URL para dejar de publicar adjuntos.",
+        "data": {
+          "web_url": "URL web del repositorio de Forgejo",
+          "release_token": "Token de acceso de Forgejo"
+        }
+      }
+    },
+    "error": {
+      "invalid_web_url": "Usa la URL HTTPS del mismo repositorio de copias.",
+      "token_required": "Introduce un token de acceso de Forgejo.",
+      "release_access": "El token debe tener permiso de escritura en el repositorio privado de copias."
+    }
   }
 }

@@ -4,12 +4,16 @@
       "user": {
         "title": "Private Forgejo repository",
         "description": "Use the SSH clone URL of a private repository dedicated to backups.",
-        "data": {"url": "SSH clone URL"}
+        "data": {
+          "url": "SSH clone URL"
+        }
       },
       "verify": {
         "title": "Verify the server and authorize the key",
         "description": "Compare one of the detected fingerprints `{fingerprint}` with a trusted value from your server administrator. Enter that trusted value below. Add the following public key to the dedicated repository as a deploy key with write access.\n\n`{public_key}`",
-        "data": {"fingerprint": "Trusted SHA256 fingerprint"}
+        "data": {
+          "fingerprint": "Trusted SHA256 fingerprint"
+        }
       }
     },
     "error": {
@@ -18,6 +22,25 @@
       "fingerprint_mismatch": "The trusted fingerprint does not match.",
       "cannot_write": "Could not access the repository with this deploy key. Check the URL and write access."
     },
-    "abort": {"already_configured": "This repository is already configured."}
+    "abort": {
+      "already_configured": "This repository is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Direct web download",
+        "description": "Use the HTTPS URL of the private backup repository and a token restricted to that repository with write:repository. Leave the token blank to keep the saved token for the same URL. Clear the URL to disable publishing attachments.",
+        "data": {
+          "web_url": "Forgejo repository web URL",
+          "release_token": "Forgejo access token"
+        }
+      }
+    },
+    "error": {
+      "invalid_web_url": "Use the HTTPS URL of the same backup repository.",
+      "token_required": "Enter a Forgejo access token.",
+      "release_access": "The token must have write access to the private backup repository."
+    }
   }
 }
