@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Repositorio privado de Forgejo",
+        "description": "Usa la URL de clonación por SSH de un repositorio privado dedicado a las copias.",
+        "data": {"url": "URL de clonación SSH"}
+      },
+      "verify": {
+        "title": "Verifica el servidor y autoriza la clave",
+        "description": "Compara una de las huellas detectadas `{fingerprint}` con la que te facilite el administrador por un canal de confianza. Introduce abajo la huella de confianza. Añade esta clave pública como clave de despliegue con escritura en el repositorio de copias.\n\n`{public_key}`",
+        "data": {"fingerprint": "Huella SHA256 de confianza"}
+      }
+    },
+    "error": {
+      "invalid_url": "Usa una URL como ssh://git@forgejo.example.org:2222/equipo/copias.git.",
+      "cannot_connect": "No se pudo identificar el servidor SSH o generar la clave.",
+      "fingerprint_mismatch": "La huella de confianza no coincide.",
+      "cannot_write": "No se pudo acceder al repositorio con esta clave. Comprueba la URL y el permiso de escritura."
+    },
+    "abort": {"already_configured": "Ya se ha configurado este repositorio."}
+  }
+}
