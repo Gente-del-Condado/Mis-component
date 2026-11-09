@@ -2,11 +2,13 @@
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shlex
 import subprocess
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
@@ -19,6 +21,10 @@ OID = re.compile(r"[0-9a-f]{40,64}")
 HOST = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}")
 
 
+_LOGGER = logging.getLogger(__name__)
+INDEX_START = "<!-- pgm-backup-index:start -->"
+INDEX_END = "<!-- pgm-backup-index:end -->"
+INDEX_LIMIT = 20
 DEFAULT_BRANCH = "refs/heads/main"
 REPOSITORY_README = """# Copias de seguridad de Home Assistant
 
@@ -226,27 +232,99 @@ class Forgejo:
         return git("hash-object", "-w", "--stdin", data=data).decode().strip()
 
     @staticmethod
-    def _commit(git, files):
+    def _commit(git, files, *, parent=None):
         rows = "".join(f"100644 blob {oid}\t{name}\n" for oid, name in files)
         tree = git("mktree", data=rows.encode()).decode().strip()
+        if parent:
+            return (
+                git("commit-tree", tree, "-p", parent, "-m", "Actualizar índice de copias")
+                .decode()
+                .strip()
+            )
         return git("commit-tree", tree, "-m", "Home Assistant backup").decode().strip()
 
-    def _ensure_readme(self, git):
-        if self._remote_refs(git, "refs/heads/*"):
-            return
-        readme = self._blob(git, REPOSITORY_README.encode())
-        commit = self._commit(git, [(readme, "README.md")])
+    @staticmethod
+    def _date(backup):
         try:
-            # Crea main solo si sigue sin existir, aunque otra subida llegue a la vez.
-            git(
-                "push",
-                f"--force-with-lease={DEFAULT_BRANCH}:",
-                self.url,
-                f"{commit}:{DEFAULT_BRANCH}",
+            date = datetime.fromisoformat(backup["date"])
+            return (
+                date.replace(tzinfo=date.tzinfo or UTC)
+                .astimezone(UTC)
+                .strftime("%Y-%m-%d %H:%M:%S")
             )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return ""
+
+    def _readme_index(self, git):
+        backups = sorted(self._list(git), key=self._date, reverse=True)[:INDEX_LIMIT]
+        lines = [INDEX_START, "## Copias recientes", ""]
+        if backups:
+            lines += [
+                "El ZIP contiene los fragmentos cifrados de una copia. Sigue el manual para unirlos.",
+                "",
+                "| Fecha UTC | Copia | Tamaño | Acceso |",
+                "| --- | --- | ---: | --- |",
+            ]
+        else:
+            lines.append("Todavía no hay copias guardadas.")
+        for backup in backups:
+            backup_id = backup["backup_id"]
+            raw_name = backup.get("name")
+            name = " ".join(raw_name.split())[:120] if isinstance(raw_name, str) else ""
+            # Los nombres vienen de los metadatos. Escapa la puntuación para renderizarlos como texto.
+            name = "".join(c if c.isalnum() or c == " " else f"&#{ord(c)};" for c in name)
+            size = f"{backup['size'] / 1024**2:.2f} MiB"
+            lines.append(
+                f"| {self._date(backup) or '—'} | {name or backup_id} | {size} | "
+                f"[Ficha](../../../src/tag/pgm-meta-{backup_id}/metadata.json) · "
+                f"[Descargar ZIP](../../../archive/pgm-data-{backup_id}.zip) |"
+            )
+        return "\n".join([*lines, "", INDEX_END, ""])
+
+    def _update_readme(self, git):
+        # Las etiquetas son el inventario real. Un fallo del índice web no invalida una copia.
+        try:
+            for _ in range(3):
+                branches = self._remote_refs(git, "refs/heads/*")
+                parent = branches.get(DEFAULT_BRANCH)
+                current = REPOSITORY_README
+                suffix = ""
+                if branches:
+                    if not parent:
+                        return
+                    git("fetch", "--no-tags", "--depth=1", self.url, DEFAULT_BRANCH)
+                    parent = git("rev-parse", "FETCH_HEAD").decode().strip()
+                    if git("ls-tree", "--name-only", parent).decode().splitlines() != ["README.md"]:
+                        return
+                    if int(git("cat-file", "-s", f"{parent}:README.md")) > META_LIMIT:
+                        return
+                    current = git("show", f"{parent}:README.md").decode(errors="replace")
+                    if current != REPOSITORY_README:
+                        if not current.startswith(REPOSITORY_README + "\n" + INDEX_START + "\n"):
+                            return
+                        _, marker, suffix = current.partition("\n" + INDEX_END + "\n")
+                        if not marker:
+                            return
+                updated = REPOSITORY_README + "\n" + self._readme_index(git) + suffix
+                if current == updated:
+                    return
+                readme = self._blob(git, updated.encode())
+                commit = self._commit(git, [(readme, "README.md")], parent=parent)
+                try:
+                    git(
+                        "push",
+                        f"--force-with-lease={DEFAULT_BRANCH}:{parent or ''}",
+                        self.url,
+                        f"{commit}:{DEFAULT_BRANCH}",
+                    )
+                    return
+                except ForgejoError:
+                    if self._remote_refs(git, "refs/heads/*") == branches:
+                        raise
         except ForgejoError:
-            if not self._remote_refs(git, "refs/heads/*"):
-                raise
+            _LOGGER.warning("No se pudo actualizar el índice de copias en el README de Forgejo")
+            return
+        _LOGGER.warning("El README de Forgejo cambió mientras se actualizaba el índice")
 
     def upload(self, source, metadata):
         if metadata.get("protected") is not True:
@@ -273,7 +351,7 @@ class Forgejo:
             record = {"backup": metadata, "sha256": digest.hexdigest()}
             if remote:
                 if len(remote) == 2 and self._read_record(git, meta, remote[meta]) == record:
-                    self._ensure_readme(git)
+                    self._update_readme(git)
                     return
                 raise ForgejoError("Ya existe una copia diferente con el mismo identificador.")
             raw = json.dumps(record, ensure_ascii=True).encode()
@@ -281,7 +359,6 @@ class Forgejo:
                 raise ForgejoError("Los metadatos de la copia superan el límite.")
             meta_commit = self._commit(git, [(self._blob(git, raw), "metadata.json")])
             data_commit = self._commit(git, files)
-            self._ensure_readme(git)
             # El alta es atómica y las referencias solo pueden crearse si todavía no existen.
             git(
                 "push",
@@ -292,6 +369,7 @@ class Forgejo:
                 f"{meta_commit}:{meta}",
                 f"{data_commit}:{data}",
             )
+            self._update_readme(git)
 
     def _read_record(self, git, ref, oid):
         git("fetch", "--no-tags", "--depth=1", self.url, ref)
@@ -321,25 +399,24 @@ class Forgejo:
 
     def list(self):
         with self._session() as git:
-            remote = self._remote_refs(git, "refs/tags/pgm-meta-*", "refs/tags/pgm-data-*")
-            refs = []
-            for ref, oid in remote.items():
-                backup_id = ref.removeprefix("refs/tags/pgm-meta-")
-                if ID.fullmatch(backup_id) and self._refs(backup_id)[1] in remote:
-                    refs.append((backup_id, ref, oid))
-            if not refs:
-                return []
-            git(
-                "fetch", "--no-tags", "--depth=1", self.url, *(f"{ref}:{ref}" for _, ref, _ in refs)
-            )
-            results = []
-            for backup_id, ref, oid in refs:
-                if git("rev-parse", ref).decode().strip() != oid:
-                    raise ForgejoError(
-                        "El catálogo cambió durante la lectura. Vuelve a intentarlo."
-                    )
-                results.append(self._parse_record(git, oid, backup_id)["backup"])
-            return results
+            return self._list(git)
+
+    def _list(self, git):
+        remote = self._remote_refs(git, "refs/tags/pgm-meta-*", "refs/tags/pgm-data-*")
+        refs = []
+        for ref, oid in remote.items():
+            backup_id = ref.removeprefix("refs/tags/pgm-meta-")
+            if ID.fullmatch(backup_id) and self._refs(backup_id)[1] in remote:
+                refs.append((backup_id, ref, oid))
+        if not refs:
+            return []
+        git("fetch", "--no-tags", "--depth=1", self.url, *(f"{ref}:{ref}" for _, ref, _ in refs))
+        results = []
+        for backup_id, ref, oid in refs:
+            if git("rev-parse", ref).decode().strip() != oid:
+                raise ForgejoError("El catálogo cambió durante la lectura. Vuelve a intentarlo.")
+            results.append(self._parse_record(git, oid, backup_id)["backup"])
+        return results
 
     def _lookup(self, git, backup_id):
         meta, data = self._refs(backup_id)
@@ -390,3 +467,4 @@ class Forgejo:
                 f":{meta}",
                 f":{data}",
             )
+            self._update_readme(git)
