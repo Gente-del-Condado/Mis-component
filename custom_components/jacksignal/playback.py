@@ -56,6 +56,10 @@ class Playback:
                 return False
             if self._process and self._process.returncode is None:
                 if self._repeating_siren or priority < self.priority:
+                    _LOGGER.debug(
+                        "Audio rejected: owner=%s priority=%s; active owner=%s priority=%s siren=%s",
+                        owner, priority.name, self.owner, self.priority.name, self._repeating_siren,
+                    )
                     return False
             await self._stop()
             protocols = "file" if sound.local else "http,https,tcp,tls,crypto"
@@ -66,7 +70,12 @@ class Playback:
                 process = await asyncio.create_subprocess_exec(
                     "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
                     *input_options, "-i", sound.source,
-                    "-map", "0:a:0", "-vn", "-f", "pulse",
+                    "-map", "0:a:0", "-vn",
+                    # The PulseAudio muxer disconnects without draining its buffer.
+                    # A bounded buffer and trailing silence keep the audible tail
+                    # alive until it reaches the sink. Infinite loops do not reach
+                    # EOF, so apad does not insert gaps between siren iterations.
+                    "-af", "apad=pad_dur=1", "-f", "pulse", "-buffer_duration", "200",
                     "-name", "JackSignal", "default",
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,
@@ -74,6 +83,7 @@ class Playback:
             except OSError:
                 self.notify()
                 raise
+            _LOGGER.debug("Audio started: owner=%s priority=%s repeat=%s", owner, priority.name, repeat)
             self._process = process
             self.sound = sound
             self.priority = priority
@@ -94,6 +104,7 @@ class Playback:
         async with self._lock:
             if self._process is not process:
                 return
+            _LOGGER.debug("Audio finished: owner=%s exit=%s", self.owner, process.returncode)
             self._reset()
             self.notify()
             if process.returncode:
@@ -135,6 +146,7 @@ class Playback:
     async def _stop(self) -> None:
         if (process := self._process) is not None:
             if process.returncode is None:
+                _LOGGER.debug("Audio interrupted: owner=%s priority=%s", self.owner, self.priority.name)
                 try:
                     # Also works when the process is paused with SIGSTOP.
                     process.kill()

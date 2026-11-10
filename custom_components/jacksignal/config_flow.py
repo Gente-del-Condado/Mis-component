@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.helpers.translation import async_get_translations
 
+from .alarm import CLOSED_STATES
 from .const import (
     ALARM,
     DEFAULT_PRIORITIES,
@@ -150,6 +151,7 @@ class SoundOptions(OptionsFlow):
             rule = sensor_rules.get(entity_id)
             conditions = []
             if rule:
+                conditions.append(translated("open_state", rule.get("open_state", "on")))
                 if rule.get("sound") and rule.get("failed_to_arm", True):
                     conditions.append(translated("sensor_summary", "failed_to_arm"))
                 mode = rule.get("on_open", "never")
@@ -293,6 +295,10 @@ class SoundOptions(OptionsFlow):
         if section == RULES and self._key == "triggered":
             fields[validation.Optional("repeat", default=True)] = selector.BooleanSelector()
         if section == SENSOR_RULES:
+            fields[validation.Required("open_state", default=current.get("open_state", "on"))] = selector.SelectSelector({
+                "options": list(CLOSED_STATES), "translation_key": "open_state",
+                "mode": selector.SelectSelectorMode.DROPDOWN,
+            })
             fields[validation.Optional("close_sound")] = media_selector()
             fields[validation.Required("on_close", default="never")] = selector.SelectSelector({
                 "options": ["never", "disarmed", "always"], "translation_key": "on_close",
@@ -307,6 +313,9 @@ class SoundOptions(OptionsFlow):
             step_id=step,
             data_schema=self.add_suggested_values_to_schema(validation.Schema(fields), user_input or current),
             errors=errors,
+            description_placeholders={"sensor": self._key, "state": (
+                self.hass.states.get(self._key).state if self.hass.states.get(self._key) else "unavailable"
+            )} if section == SENSOR_RULES else None,
         )
 
     async def async_step_preview(self, user_input=None):

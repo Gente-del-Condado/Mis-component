@@ -56,14 +56,15 @@
       },
       "sensor_sound": {
         "title": "Sonido y prioridad del sensor",
-        "description": "El sonido principal se usa para apertura/activación y fallo al armar. El sonido de cierre es independiente; ambos comparten prioridad. Borra ambos sonidos para eliminar la regla. Solo se avisa en cambios reales off→on y on→off, no al reiniciar ni recuperar la conexión. «Siempre» funciona sin Alarmo y respeta las prioridades.",
+        "description": "Sensor: {sensor}. Estado interno actual: **{state}** (vuelve a abrir este formulario para refrescarlo). Elige qué estado significa abierto: normalmente on en Home Assistant, aunque se muestre «abierto/cerrado». Si tu entidad expone true/false, comprueba su sentido: en algunos contactos Zigbee true significa cerrado. Configura por separado sonido y condición de apertura y cierre. «Nunca» desactiva ese aviso; el fallo al armar es independiente. Borra ambos sonidos para eliminar la regla. Se ignoran arranque y reconexiones.",
         "data": {
           "sound": "Sonido de apertura / fallo al armar",
           "priority": "Prioridad",
           "failed_to_arm": "Avisar si impide armar Alarmo",
           "on_open": "Aviso al abrir / activarse",
           "close_sound": "Sonido de cierre / desactivación",
-          "on_close": "Aviso al cerrar / desactivarse"
+          "on_close": "Aviso al cerrar / desactivarse",
+          "open_state": "Estado interno que significa abierto / activo"
         }
       },
       "preview": {
@@ -182,6 +183,16 @@
         "preview": "Probar sin guardar",
         "delete": "Eliminar regla"
       }
+    },
+    "open_state": {
+      "options": {
+        "on": "on → abierto (Home Assistant)",
+        "off": "off → abierto (invertido)",
+        "true": "true → abierto",
+        "false": "false → abierto",
+        "open": "open → abierto",
+        "closed": "closed → abierto (invertido)"
+      }
     }
   },
   "services": {
@@ -231,6 +242,9 @@
     },
     "speech_rule_missing": {
       "message": "Configura primero la voz para este sensor en JackSignal."
+    },
+    "higher_priority": {
+      "message": "No se ha reproducido: hay un aviso de mayor prioridad o una sirena protegida. Espera a que termine o detén la reproducción desde Home Assistant."
     }
   }
 }

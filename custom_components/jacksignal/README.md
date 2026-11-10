@@ -55,7 +55,7 @@ En **JackSignal → Configurar**:
 
 Puedes activar por separado el aviso cuando un sensor impide armar Alarmo. Asignar ese aviso no activa automáticamente el sonido al abrir: debes elegir su condición. Si varios sensores impiden armar, se selecciona el aviso de mayor prioridad; un empate conserva el primero del evento.
 
-Los sensores binarios con condición **siempre** funcionan sin Alarmo. **Solo desarmada** requiere un panel vinculado, disponible y desarmado. Los avisos se disparan por cambios reales `off → on` o `on → off`; no al arrancar ni al recuperar un sensor desconectado.
+Los sensores binarios con condición **siempre** funcionan sin Alarmo. **Solo desarmada** requiere un panel vinculado, disponible y desarmado. Los avisos se disparan por cambios reales `off → on` o `on → off` de forma predeterminada; no al arrancar ni al recuperar un sensor desconectado. Desde 0.7.2, el formulario muestra el estado interno del sensor y permite elegir qué estado significa abierto (`on`, `off`, `true`, `false`, `open` o `closed`). La transición contraria se interpreta como cierre. Conserva `on` para sensores normales de Home Assistant, aunque visualmente se muestren como «abierto/cerrado». Si la entidad expone booleanos, comprueba su sentido: algunos contactos Zigbee usan `true` para cerrado y requieren seleccionar `false` como abierto.
 
 Desactiva las acciones antiguas que ejecuten FFmpeg directamente cuando hayas comprobado las reglas nuevas: el audio externo a JackSignal no participa en sus prioridades.
 
@@ -100,7 +100,7 @@ data:
 | Alta | 2 | Avisos importantes |
 | Crítica | 3 | Sirena de alarma |
 
-Un aviso de prioridad **igual o superior** detiene y reemplaza el audio actual. Uno de menor prioridad se descarta: no hay cola ni mezcla. La música interrumpida no se reanuda automáticamente.
+Un aviso de prioridad **igual o superior** detiene y reemplaza el audio actual. Uno de menor prioridad se descarta: no hay cola ni mezcla. La música interrumpida no se reanuda automáticamente. Al terminar un archivo se añade un segundo de silencio para que PulseAudio no recorte su final; el reproductor puede seguir activo brevemente durante ese margen.
 
 La **sirena crítica repetitiva de Alarmo** está protegida frente a otros avisos hasta que el panel salga del estado disparado. Los controles manuales de Home Assistant siguen disponibles. DLNA no puede detener ni modificar un aviso de prioridad superior. Puedes consultar `priority` y `alarm_event` en los atributos del reproductor.
 
@@ -128,6 +128,8 @@ El emisor debe servir el archivo mediante una URL HTTP(S) accesible desde la Ras
 | No aparece un motor de voz | Configura primero una integración TTS en Home Assistant. |
 | No suena ningún medio | Comprueba FFmpeg, PulseAudio y su salida predeterminada; una ruta del host no siempre existe dentro de Home Assistant. |
 | No aparece el receptor DLNA | Revisa la interfaz elegida, SSDP, cortafuegos y compatibilidad del emisor; Cast no es DLNA. |
+
+Si un sensor no avisa, comprueba por separado su sonido y condición de apertura y cierre. En el formulario puedes consultar el estado interno y seleccionar el que realmente significa abierto. Cambiar esta selección no cambia el sensor ni su configuración en Alarmo. Puedes activar el registro de depuración de la integración desde Dispositivos y servicios, reproducir el problema y desactivarlo para descargar el registro: muestra si el aviso fue descartado por condición, falta de sonido o prioridad, o si otro audio lo interrumpió.
 
 Para informar de un problema, indica versiones de Home Assistant y JackSignal, método de instalación, pasos y registros relevantes, sin credenciales: [incidencias](https://github.com/Gente-del-Condado/jacksignal-ha/issues).
 

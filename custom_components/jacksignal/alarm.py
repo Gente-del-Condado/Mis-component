@@ -15,6 +15,10 @@ from .playback import Playback
 
 _LOGGER = logging.getLogger(__name__)
 
+# Explicit polarity: raw Zigbee contact=true can mean CLOSED, unlike HA on=open.
+CLOSED_STATES = {"on": "off", "off": "on", "true": "false", "false": "true",
+                 "open": "closed", "closed": "open"}
+
 
 def alarm_event(state: str) -> str:
     """Treat all armed modes as the same sound event."""
@@ -53,25 +57,41 @@ class AlarmSounds:
     async def _sensor_opened(self, event: Event) -> None:
         """Play distinct sounds for real activation and deactivation transitions."""
         old, new = event.data.get("old_state"), event.data.get("new_state")
-        if old is None or new is None or (old.state, new.state) not in {("off", "on"), ("on", "off")}:
+        if old is None or new is None:
             return
-        opening = new.state == "on"
         entity_id = event.data["entity_id"]
         async with self._lock:
             rule = self.sensor_rules.get(entity_id)
             if not rule:
                 return
+            open_state = rule.get("open_state", "on")
+            closed_state = CLOSED_STATES.get(open_state)
+            previous, updated = old.state.casefold(), new.state.casefold()
+            if closed_state is None or (previous, updated) not in {
+                (closed_state, open_state), (open_state, closed_state),
+            }:
+                _LOGGER.debug("Sensor %s %s -> %s ignored: expected %s/%s", entity_id,
+                              old.state, new.state, open_state, closed_state)
+                return
+            opening = updated == open_state
             mode = rule.get("on_open" if opening else "on_close", "never")
             if mode not in {"disarmed", "always"}:
+                _LOGGER.debug("Sensor %s %s -> %s ignored: mode=%s", entity_id, old.state, new.state, mode)
                 return
             panel = self.hass.states.get(self.alarm) if self.alarm else None
             if mode == "disarmed" and (panel is None or panel.state != "disarmed"):
+                _LOGGER.debug("Sensor %s %s -> %s ignored: panel=%s", entity_id, old.state, new.state,
+                              panel.state if panel else "missing")
                 return
             current = self.hass.states.get(entity_id)
             if current is None or current.state != new.state:
+                _LOGGER.debug("Sensor %s %s -> %s ignored: transition superseded", entity_id, old.state, new.state)
                 return
             selection = rule.get("sound" if opening else "close_sound")
+            if not selection:
+                _LOGGER.debug("Sensor %s %s -> %s ignored: no sound assigned", entity_id, old.state, new.state)
             if selection:
+                _LOGGER.debug("Sensor %s %s -> %s matched: mode=%s", entity_id, old.state, new.state, mode)
                 kind = "sensor_open" if opening else "sensor_close"
                 await self._play({**rule, "sound": selection}, f"{kind}:{entity_id}")
 

@@ -56,14 +56,15 @@
       },
       "sensor_sound": {
         "title": "Sensor sound and priority",
-        "description": "The main sound is used for opening/activation and failed arming. Closing uses a separate sound; both share priority. Clear both sounds to remove the rule. Only real off→on and on→off transitions play, not startup or reconnection. Always mode works without Alarmo and respects priorities.",
+        "description": "Sensor: {sensor}. Current raw state: **{state}** (reopen this form to refresh). Select the state meaning open: normally on in Home Assistant, even when displayed as open/closed. If the entity exposes true/false, check its polarity: some Zigbee contacts use true for closed. Configure opening and closing sounds and conditions separately. Never disables that alert; failed arming is independent. Clear both sounds to remove the rule. Startup and reconnection are ignored.",
         "data": {
           "sound": "Opening / failed arming sound",
           "priority": "Priority",
           "failed_to_arm": "Play when preventing Alarmo from arming",
           "on_open": "Play when opened / activated",
           "close_sound": "Closing / deactivation sound",
-          "on_close": "Play when closed / deactivated"
+          "on_close": "Play when closed / deactivated",
+          "open_state": "Raw state meaning open / active"
         }
       },
       "preview": {
@@ -182,6 +183,16 @@
         "preview": "Test without saving",
         "delete": "Delete rule"
       }
+    },
+    "open_state": {
+      "options": {
+        "on": "on → open (Home Assistant)",
+        "off": "off → open (inverted)",
+        "true": "true → open",
+        "false": "false → open",
+        "open": "open → open",
+        "closed": "closed → open (inverted)"
+      }
     }
   },
   "services": {
@@ -231,6 +242,9 @@
     },
     "speech_rule_missing": {
       "message": "Configure speech for this sensor in JackSignal first."
+    },
+    "higher_priority": {
+      "message": "Not played: a higher-priority alert or protected siren is active. Wait until it finishes or stop playback from Home Assistant."
     }
   }
 }

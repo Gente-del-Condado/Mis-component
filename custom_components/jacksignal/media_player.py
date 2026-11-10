@@ -123,7 +123,8 @@ class JackPlayer(MediaPlayerEntity):
     async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
         sound = await resolve(self.hass, media_id, self.entity_id)
         try:
-            await self._playback.play(sound, Priority.LOW)
+            if not await self._playback.play(sound, Priority.LOW):
+                raise error("higher_priority")
         except OSError as err:
             raise error("ffmpeg_unavailable") from err
 
