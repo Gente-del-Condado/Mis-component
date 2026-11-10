@@ -28,6 +28,16 @@ from .selectors import media_selector, priority_selector, validation
 from .speech import SPEECH_RULES, preview
 
 
+def suggested_sensor_states(state):
+    """Suggest a state vocabulary, without claiming to infer physical polarity."""
+    value = state.state.casefold() if state else ""
+    for opened, closed in (("on", "off"), ("true", "false"), ("open", "closed"),
+                           ("1", "0"), ("abierto", "cerrado")):
+        if value in {opened, closed}:
+            return opened, closed
+    return "on", "off"
+
+
 class SonidosConfigFlow(ConfigFlow, domain=DOMAIN):
     """Install one player for this Home Assistant instance."""
 
@@ -151,7 +161,9 @@ class SoundOptions(OptionsFlow):
             rule = sensor_rules.get(entity_id)
             conditions = []
             if rule:
-                conditions.append(translated("open_state", rule.get("open_state", "on")))
+                configured_open = rule.get("open_state", "on")
+                configured_closed = rule.get("closed_state", CLOSED_STATES.get(configured_open, "off"))
+                conditions.append(f"{configured_closed} → {configured_open}")
                 if rule.get("sound") and rule.get("failed_to_arm", True):
                     conditions.append(translated("sensor_summary", "failed_to_arm"))
                 mode = rule.get("on_open", "never")
@@ -164,6 +176,7 @@ class SoundOptions(OptionsFlow):
             if rule and rule.get("close_sound"):
                 close_label = translated("sensor_summary", "close")
                 close_mode = translated("on_close", rule.get("on_close", "never"))
+                close_mode += f" · {configured_open} → {configured_closed}"
                 close_audio = sound({**rule, "sound": rule["close_sound"]})
                 lines.append(f"  - {plain(close_label)}: {close_audio} · {plain(close_mode)}")
         values["sensors"] = "\n".join(lines) or "—"
@@ -272,7 +285,23 @@ class SoundOptions(OptionsFlow):
         rules = dict(options.get(section, {}))
         current = rules.get(self._key, {})
         errors = {}
+        sensor_state = self.hass.states.get(self._key) if section == SENSOR_RULES else None
+        suggested_open, suggested_closed = suggested_sensor_states(sensor_state)
+        open_state = current.get("open_state", "on" if current else suggested_open)
+        closed_state = current.get("closed_state", CLOSED_STATES.get(open_state, suggested_closed))
         if user_input is not None:
+            user_input = dict(user_input)
+            if section == SENSOR_RULES:
+                user_input["open_state"] = user_input.get("open_state", open_state).strip().casefold()
+                user_input["closed_state"] = user_input.get("closed_state", closed_state).strip().casefold()
+                for field in ("open_state", "closed_state"):
+                    if user_input[field] in {"", "unknown", "unavailable"}:
+                        errors[field] = "invalid_sensor_state"
+                if user_input["open_state"] == user_input["closed_state"]:
+                    errors["closed_state"] = "same_sensor_states"
+                for mode, field in (("on_open", "sound"), ("on_close", "close_sound")):
+                    if user_input.get(mode, "never") != "never" and not user_input.get(field):
+                        errors[field] = "sensor_sound_required"
             if not user_input.get("sound") and not (section == SENSOR_RULES and user_input.get("close_sound")):
                 rules.pop(self._key, None)
             else:
@@ -295,20 +324,28 @@ class SoundOptions(OptionsFlow):
         if section == RULES and self._key == "triggered":
             fields[validation.Optional("repeat", default=True)] = selector.BooleanSelector()
         if section == SENSOR_RULES:
-            fields[validation.Required("open_state", default=current.get("open_state", "on"))] = selector.SelectSelector({
-                "options": list(CLOSED_STATES), "translation_key": "open_state",
-                "mode": selector.SelectSelectorMode.DROPDOWN,
-            })
-            fields[validation.Optional("close_sound")] = media_selector()
-            fields[validation.Required("on_close", default="never")] = selector.SelectSelector({
-                "options": ["never", "disarmed", "always"], "translation_key": "on_close",
-                "mode": selector.SelectSelectorMode.DROPDOWN,
-            })
-            fields[validation.Required("failed_to_arm", default=True)] = selector.BooleanSelector()
-            fields[validation.Required("on_open", default="never")] = selector.SelectSelector({
-                "options": ["never", "disarmed", "always"], "translation_key": "on_open",
-                "mode": selector.SelectSelectorMode.DROPDOWN,
-            })
+            def state_selector():
+                return selector.SelectSelector({
+                    "options": ["on", "off", "true", "false", "open", "closed", "1", "0", "abierto", "cerrado"],
+                    "custom_value": True, "mode": selector.SelectSelectorMode.DROPDOWN,
+                })
+
+            def condition_selector(key):
+                return selector.SelectSelector({
+                    "options": ["never", "disarmed", "always"], "translation_key": key,
+                    "mode": selector.SelectSelectorMode.DROPDOWN,
+                })
+
+            fields = {
+                validation.Required("open_state", default=open_state): state_selector(),
+                validation.Optional("sound"): media_selector(),
+                validation.Required("on_open", default=current.get("on_open", "never")): condition_selector("on_open"),
+                validation.Required("closed_state", default=closed_state): state_selector(),
+                validation.Optional("close_sound"): media_selector(),
+                validation.Required("on_close", default=current.get("on_close", "never")): condition_selector("on_close"),
+                validation.Required("priority", default=current.get("priority", default_priority.name.lower())): priority_selector(),
+                validation.Required("failed_to_arm", default=current.get("failed_to_arm", True)): selector.BooleanSelector(),
+            }
         return self.async_show_form(
             step_id=step,
             data_schema=self.add_suggested_values_to_schema(validation.Schema(fields), user_input or current),

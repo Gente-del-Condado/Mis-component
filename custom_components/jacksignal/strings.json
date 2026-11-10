@@ -56,15 +56,16 @@
       },
       "sensor_sound": {
         "title": "Sensor sound and priority",
-        "description": "Sensor: {sensor}. Current raw state: **{state}** (reopen this form to refresh). Select the state meaning open: normally on in Home Assistant, even when displayed as open/closed. If the entity exposes true/false, check its polarity: some Zigbee contacts use true for closed. Configure opening and closing sounds and conditions separately. Never disables that alert; failed arming is independent. Clear both sounds to remove the rule. Startup and reconnection are ignored.",
+        "description": "Sensor: {sensor}. Current raw state: **{state}** (reopen this form to refresh).\n\n**Each alert needs its own sound.** To play both, select an OPENING file and a CLOSING file; they may be the same. Always does not select a file.\n\nStates are suggested automatically for a new sensor. Home Assistant normally uses on = open and off = closed. Review other vocabularies: true/false does not guarantee physical polarity. You can change both states or enter distinct custom values. Saved choices are preserved when editing.\n\nTo leave an alert without a sound, select Never for that alert. To delete the rule, set both to Never and clear both files. Failed arming uses the OPENING sound.",
         "data": {
-          "sound": "Opening / failed arming sound",
+          "sound": "OPENING · Sound (select a file)",
           "priority": "Priority",
           "failed_to_arm": "Play when preventing Alarmo from arming",
-          "on_open": "Play when opened / activated",
-          "close_sound": "Closing / deactivation sound",
-          "on_close": "Play when closed / deactivated",
-          "open_state": "Raw state meaning open / active"
+          "on_open": "OPENING · When to play",
+          "close_sound": "CLOSING · Sound (select another or the same file)",
+          "on_close": "CLOSING · When to play",
+          "open_state": "OPENING · Sensor state",
+          "closed_state": "CLOSING · Sensor state"
         }
       },
       "preview": {
@@ -126,7 +127,10 @@
       "dlna_start": "Could not start DLNA. Check that the IP belongs to this host and the port is free.",
       "speech_threshold": "Enter a valid numeric threshold.",
       "speech_engine": "Choose a speech engine. If none appear, configure a TTS integration first.",
-      "speech_failed": "Could not generate or play speech. Check the sensor, TTS engine and Home Assistant internal URL."
+      "speech_failed": "Could not generate or play speech. Check the sensor, TTS engine and Home Assistant internal URL.",
+      "sensor_sound_required": "Select a sound for this alert or set its condition to Never.",
+      "same_sensor_states": "Opening and closing states must be different.",
+      "invalid_sensor_state": "Enter a valid state; unknown and unavailable are reserved for unavailable sensors."
     }
   },
   "selector": {

@@ -65,7 +65,7 @@ class AlarmSounds:
             if not rule:
                 return
             open_state = rule.get("open_state", "on")
-            closed_state = CLOSED_STATES.get(open_state)
+            closed_state = rule.get("closed_state", CLOSED_STATES.get(open_state))
             previous, updated = old.state.casefold(), new.state.casefold()
             if closed_state is None or (previous, updated) not in {
                 (closed_state, open_state), (open_state, closed_state),

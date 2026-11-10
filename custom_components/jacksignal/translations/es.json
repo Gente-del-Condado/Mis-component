@@ -56,15 +56,16 @@
       },
       "sensor_sound": {
         "title": "Sonido y prioridad del sensor",
-        "description": "Sensor: {sensor}. Estado interno actual: **{state}** (vuelve a abrir este formulario para refrescarlo). Elige qué estado significa abierto: normalmente on en Home Assistant, aunque se muestre «abierto/cerrado». Si tu entidad expone true/false, comprueba su sentido: en algunos contactos Zigbee true significa cerrado. Configura por separado sonido y condición de apertura y cierre. «Nunca» desactiva ese aviso; el fallo al armar es independiente. Borra ambos sonidos para eliminar la regla. Se ignoran arranque y reconexiones.",
+        "description": "Sensor: {sensor}. Estado interno actual: **{state}** (reabre el formulario para refrescarlo).\n\n**Cada aviso necesita su propio sonido.** Para que suenen ambos, selecciona un archivo en APERTURA y otro en CIERRE; pueden ser el mismo. «Siempre» no selecciona un archivo.\n\nLos estados se proponen automáticamente al añadir el sensor. En Home Assistant, normalmente on = abierto y off = cerrado. Revisa la propuesta si tu sensor usa otros valores: true/false no garantiza una polaridad física. Puedes cambiar ambos estados o escribir otros distintos. Los valores guardados no se sustituyen al editar.\n\nPara dejar un aviso sin sonido, selecciona «Nunca» en ese aviso. Para eliminar la regla, pon ambos en «Nunca» y borra los dos archivos. El fallo al armar utiliza el sonido de APERTURA.",
         "data": {
-          "sound": "Sonido de apertura / fallo al armar",
+          "sound": "APERTURA · Sonido (selecciona un archivo)",
           "priority": "Prioridad",
           "failed_to_arm": "Avisar si impide armar Alarmo",
-          "on_open": "Aviso al abrir / activarse",
-          "close_sound": "Sonido de cierre / desactivación",
-          "on_close": "Aviso al cerrar / desactivarse",
-          "open_state": "Estado interno que significa abierto / activo"
+          "on_open": "APERTURA · Cuándo avisar",
+          "close_sound": "CIERRE · Sonido (selecciona otro o el mismo archivo)",
+          "on_close": "CIERRE · Cuándo avisar",
+          "open_state": "APERTURA · Estado del sensor",
+          "closed_state": "CIERRE · Estado del sensor"
         }
       },
       "preview": {
@@ -126,7 +127,10 @@
       "dlna_start": "No se pudo iniciar DLNA. Comprueba que la IP pertenece a este equipo y que el puerto está libre.",
       "speech_threshold": "Indica un umbral numérico válido.",
       "speech_engine": "Elige un motor de voz. Si no aparece ninguno, configura antes una integración TTS en Home Assistant.",
-      "speech_failed": "No se pudo generar o reproducir la voz. Comprueba el sensor, el motor TTS y la URL interna de Home Assistant."
+      "speech_failed": "No se pudo generar o reproducir la voz. Comprueba el sensor, el motor TTS y la URL interna de Home Assistant.",
+      "sensor_sound_required": "Selecciona un sonido para este aviso o cambia su condición a «Nunca».",
+      "same_sensor_states": "Apertura y cierre deben tener estados diferentes.",
+      "invalid_sensor_state": "Escribe un estado válido; unknown y unavailable se reservan para desconexiones."
     }
   },
   "selector": {
