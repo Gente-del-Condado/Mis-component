@@ -57,15 +57,17 @@ def validate_web_url(web_url, ssh_url):
 
 
 class Releases:
+    provider_name = "Forgejo"
+
     def __init__(self, web_url, token):
         instance, owner, repo = web_url.rstrip("/").rsplit("/", 2)
         self.repo = f"{instance}/api/v1/repos/{owner}/{repo}"
         self.token = token
         self.opener = build_opener(_NoRedirect)
 
-    def _request(self, method, path="", *, body=None, headers=None, missing=False):
+    def _request(self, method, path="", *, body=None, headers=None, missing=False, base=None):
         request = Request(
-            self.repo + path,
+            (base or self.repo) + path,
             method=method,
             data=body,
             headers={
@@ -78,7 +80,7 @@ class Releases:
             with self.opener.open(request, timeout=60) as response:
                 raw = response.read(2 * 1024 * 1024 + 1)
                 if len(raw) > 2 * 1024 * 1024:
-                    raise ReleaseError("La respuesta de Forgejo es demasiado grande.")
+                    raise ReleaseError(f"La respuesta de {self.provider_name} es demasiado grande.")
                 return json.loads(raw) if raw else None
         except HTTPError as exc:
             location = exc.headers.get("Location", "")
@@ -89,10 +91,12 @@ class Releases:
             if missing and exc.code == HTTPStatus.NOT_FOUND:
                 return None
             raise ReleaseError(
-                f"Forgejo respondió HTTP {exc.code} al gestionar el adjunto.", exc.code
+                f"{self.provider_name} respondió HTTP {exc.code} al gestionar el adjunto.", exc.code
             ) from None
         except (OSError, URLError, ValueError):
-            raise ReleaseError("No se pudo gestionar el adjunto en Forgejo.") from None
+            raise ReleaseError(
+                f"No se pudo gestionar el adjunto en {self.provider_name}."
+            ) from None
 
     def check(self):
         info = self._request("GET")
@@ -159,6 +163,13 @@ class Releases:
                     return
                 raise ReleaseError("El adjunto existente tiene un tamaño diferente.")
 
+        try:
+            self._upload_asset(int(release["id"]), source, size)
+        except ReleaseError:
+            if not self.available(backup_id, size):
+                raise
+
+    def _upload_asset(self, release_id, source, size):
         # Envía el TAR como flujo con longitud conocida, sin cargar la copia completa en memoria.
         boundary = secrets.token_hex(16)
         prefix = (
@@ -175,20 +186,19 @@ class Releases:
                     yield block
             yield suffix
 
-        release_id = int(release["id"])
-        try:
-            self._request(
-                "POST",
-                f"/releases/{release_id}/assets?name={FILE_NAME}",
-                body=chunks(),
-                headers={
-                    "Content-Type": f"multipart/form-data; boundary={boundary}",
-                    "Content-Length": str(len(prefix) + size + len(suffix)),
-                },
-            )
-        except ReleaseError:
-            if not self.available(backup_id, size):
-                raise
+        self._request(
+            "POST",
+            f"/releases/{release_id}/assets?name={FILE_NAME}",
+            body=chunks(),
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Content-Length": str(len(prefix) + size + len(suffix)),
+            },
+        )
+
+    @staticmethod
+    def _asset_path(release_id, asset_id):
+        return f"/releases/{release_id}/assets/{asset_id}"
 
     def delete(self, backup_id, digest):
         release = self._release(backup_id)
@@ -203,5 +213,7 @@ class Releases:
             for asset in assets:
                 if asset.get("name") == FILE_NAME:
                     self._request(
-                        "DELETE", f"{release_path}/assets/{int(asset['id'])}", missing=True
+                        "DELETE",
+                        self._asset_path(int(release["id"]), int(asset["id"])),
+                        missing=True,
                     )

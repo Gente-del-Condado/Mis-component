@@ -8,6 +8,14 @@ from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, Tex
 from . import DOMAIN
 from .providers.forgejo import Forgejo, ForgejoError, generate_key, scan_host, ssh_address
 from .providers.forgejo_releases import ReleaseError, Releases, SSORequired, validate_web_url
+from .providers.github import (
+    GitHub,
+    GitHubReleases,
+    github_web_url,
+    is_github,
+    normalize_ssh_url,
+    validate_github_web_url,
+)
 
 
 class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -21,13 +29,18 @@ class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input:
-            url = user_input["url"].strip()
+            url = normalize_ssh_url(user_input["url"].strip())
             try:
                 host, port = ssh_address(url)
             except ForgejoError:
                 errors["url"] = "invalid_url"
             else:
-                await self.async_set_unique_id(f"{host}:{port}/{url.split('/', 3)[3]}")
+                unique_id = (
+                    github_web_url(url).lower()
+                    if is_github(url)
+                    else f"{host}:{port}/{url.split('/', 3)[3]}"
+                )
+                await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
                 try:
                     self._hosts = await self.hass.async_add_executor_job(scan_host, url)
@@ -51,14 +64,16 @@ class ForgejoBackupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not known_host:
                 errors["fingerprint"] = "fingerprint_mismatch"
             else:
-                provider = Forgejo(self._url, self._private, known_host)
+                provider_type = GitHub if is_github(self._url) else Forgejo
+                provider = provider_type(self._url, self._private, known_host)
                 try:
                     await self.hass.async_add_executor_job(provider.check)
                 except ForgejoError:
                     errors["base"] = "cannot_write"
                 else:
                     return self.async_create_entry(
-                        title="Forgejo · " + self._url.rsplit("/", 1)[-1].removesuffix(".git"),
+                        title=f"{provider.provider_name} · "
+                        + self._url.rsplit("/", 1)[-1].removesuffix(".git"),
                         data={
                             "url": self._url,
                             "identity": self._private,
@@ -80,13 +95,16 @@ class ForgejoBackupOptions(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         errors = {}
         options = self.config_entry.options
+        ssh_url = self.config_entry.data["url"]
+        github = is_github(ssh_url)
         if user_input is not None:
             web_url = user_input.get("web_url", "").strip()
             token = user_input.get("release_token", "").strip()
             if not web_url:
                 return self.async_create_entry(data={})
             try:
-                web_url = validate_web_url(web_url, self.config_entry.data["url"])
+                validate = validate_github_web_url if github else validate_web_url
+                web_url = validate(web_url, ssh_url)
             except ReleaseError:
                 errors["web_url"] = "invalid_web_url"
             else:
@@ -96,7 +114,8 @@ class ForgejoBackupOptions(config_entries.OptionsFlow):
                     errors["release_token"] = "token_required"
                 else:
                     try:
-                        await self.hass.async_add_executor_job(Releases(web_url, token).check)
+                        release_type = GitHubReleases if github else Releases
+                        await self.hass.async_add_executor_job(release_type(web_url, token).check)
                     except SSORequired:
                         errors["base"] = "release_sso_required"
                     except ReleaseError:
@@ -110,7 +129,12 @@ class ForgejoBackupOptions(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Optional(
-                        "web_url", description={"suggested_value": options.get("web_url", "")}
+                        "web_url",
+                        description={
+                            "suggested_value": options.get(
+                                "web_url", github_web_url(ssh_url) if github else ""
+                            )
+                        },
                     ): str,
                     vol.Optional("release_token"): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
