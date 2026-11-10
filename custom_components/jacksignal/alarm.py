@@ -36,15 +36,14 @@ class AlarmSounds:
         self._unsubscribers: list[Callable[[], None]] = []
 
     def subscribe(self) -> list[Callable[[], None]]:
-        """Subscribe only if the user selected an alarm panel."""
-        if not self.alarm:
-            return []
+        """Keep standalone sensor rules independent of the optional alarm panel."""
         subscriptions = [
             async_track_state_change_event(self.hass, [self.alarm], self._state_changed),
             self.hass.bus.async_listen("alarmo_failed_to_arm", self._failed_to_arm),
-        ]
+        ] if self.alarm else []
         opening_sensors = [entity_id for entity_id, rule in self.sensor_rules.items()
-                           if rule.get("on_open", "never") in {"disarmed", "always"}]
+                           if any(rule.get(key, "never") in {"disarmed", "always"}
+                                  for key in ("on_open", "on_close"))]
         if opening_sensors:
             subscriptions.append(async_track_state_change_event(
                 self.hass, opening_sensors, self._sensor_opened,
@@ -52,25 +51,29 @@ class AlarmSounds:
         return subscriptions
 
     async def _sensor_opened(self, event: Event) -> None:
-        """Only an actual closed-to-open transition triggers an opening sound."""
+        """Play distinct sounds for real activation and deactivation transitions."""
         old, new = event.data.get("old_state"), event.data.get("new_state")
-        if old is None or new is None or old.state != "off" or new.state != "on":
+        if old is None or new is None or (old.state, new.state) not in {("off", "on"), ("on", "off")}:
             return
+        opening = new.state == "on"
         entity_id = event.data["entity_id"]
         async with self._lock:
             rule = self.sensor_rules.get(entity_id)
-            if not self.alarm or not rule:
+            if not rule:
                 return
-            mode = rule.get("on_open", "never")
+            mode = rule.get("on_open" if opening else "on_close", "never")
             if mode not in {"disarmed", "always"}:
                 return
-            panel = self.hass.states.get(self.alarm)
+            panel = self.hass.states.get(self.alarm) if self.alarm else None
             if mode == "disarmed" and (panel is None or panel.state != "disarmed"):
                 return
             current = self.hass.states.get(entity_id)
-            if current is None or current.state != "on":
+            if current is None or current.state != new.state:
                 return
-            await self._play(rule, f"sensor_open:{entity_id}")
+            selection = rule.get("sound" if opening else "close_sound")
+            if selection:
+                kind = "sensor_open" if opening else "sensor_close"
+                await self._play({**rule, "sound": selection}, f"{kind}:{entity_id}")
 
     def start(self) -> None:
         """Own subscriptions so options can replace them without reloading playback."""
@@ -143,6 +146,7 @@ class AlarmSounds:
                     for entity_id in sensors
                     if entity_id in self.sensor_rules
                     and self.sensor_rules[entity_id].get("failed_to_arm", True)
+                    and self.sensor_rules[entity_id].get("sound")
                 ]
                 if matches:
                     rule = max(matches, key=lambda item: Priority[item["priority"].upper()])

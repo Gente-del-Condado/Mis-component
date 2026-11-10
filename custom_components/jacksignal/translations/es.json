@@ -18,7 +18,7 @@
         "menu_options": {
           "alarm": "Vincular Alarmo",
           "event": "Asignar sonido a un evento de Alarmo",
-          "sensor": "Asignar sonido a un sensor abierto",
+          "sensor": "Asignar sonidos a un sensor",
           "preview": "Probar un sonido por el jack",
           "dlna": "DLNA: red y puerto",
           "overview": "Ver sonidos asignados"
@@ -48,19 +48,21 @@
       },
       "sensor": {
         "title": "Elige un sensor",
-        "description": "Elige un sensor para ver o editar su sonido. En el siguiente paso puedes elegir cuándo debe sonar. Requiere un panel vinculado en Vincular Alarmo.",
+        "description": "Elige cualquier sensor binario, aunque no pertenezca a Alarmo. Configura sonidos independientes de apertura/activación y cierre/desactivación. Solo el modo «desarmada» y el fallo al armar requieren un panel vinculado.",
         "data": {
           "sensor": "Sensor"
         }
       },
       "sensor_sound": {
         "title": "Sonido y prioridad del sensor",
-        "description": "Borra el sonido para eliminar la regla. El aviso al abrir se dispara al pasar de cerrado a abierto, nunca al reiniciar o recuperar un sensor desconectado. Si varios sensores impiden armar, suena el de mayor prioridad. Todas las reproducciones respetan las prioridades de JackSignal.",
+        "description": "El sonido principal se usa para apertura/activación y fallo al armar. El sonido de cierre es independiente; ambos comparten prioridad. Borra ambos sonidos para eliminar la regla. Solo se avisa en cambios reales off→on y on→off, no al reiniciar ni recuperar la conexión. «Siempre» funciona sin Alarmo y respeta las prioridades.",
         "data": {
-          "sound": "Sonido",
+          "sound": "Sonido de apertura / fallo al armar",
           "priority": "Prioridad",
           "failed_to_arm": "Avisar si impide armar Alarmo",
-          "on_open": "Aviso al abrir / activarse"
+          "on_open": "Aviso al abrir / activarse",
+          "close_sound": "Sonido de cierre / desactivación",
+          "on_close": "Aviso al cerrar / desactivarse"
         }
       },
       "preview": {
@@ -82,7 +84,7 @@
       },
       "overview": {
         "title": "Sonidos asignados",
-        "description": "Panel vinculado: {alarm}\n\n**Eventos de Alarmo**\n\n- Alarma disparada: {triggered}\n- Cuenta atrás de entrada: {pending}\n- Cuenta atrás de salida: {arming}\n- Alarma armada: {armed}\n- Alarma desarmada: {disarmed}\n- Fallo al armar: {failed_to_arm}\n\n**Sensores**\n\n{sensors}\n\nSe muestran los sensores de apertura de Home Assistant y cualquier otro sensor con una regla guardada; no es la lista de sensores vinculados a Alarmo.\n\n— = Sin sonido asignado. P0 = Baja, P1 = Normal, P2 = Alta, P3 = Crítica. ↻ = Repetición.\n\nCada sensor muestra sus condiciones de reproducción. Las reglas de sensores requieren un panel de alarma vinculado. Para ver o cambiar una selección, elige el evento o sensor en los botones siguientes.",
+        "description": "Panel vinculado: {alarm}\n\n**Eventos de Alarmo**\n\n- Alarma disparada: {triggered}\n- Cuenta atrás de entrada: {pending}\n- Cuenta atrás de salida: {arming}\n- Alarma armada: {armed}\n- Alarma desarmada: {disarmed}\n- Fallo al armar: {failed_to_arm}\n\n**Sensores**\n\n{sensors}\n\nSe muestran los sensores de apertura de Home Assistant y cualquier otro sensor con una regla guardada; no es la lista de sensores vinculados a Alarmo.\n\n— = Sin sonido asignado. P0 = Baja, P1 = Normal, P2 = Alta, P3 = Crítica. ↻ = Repetición.\n\nCada sensor muestra sus condiciones de reproducción. El modo «siempre» funciona sin Alarmo; el modo «desarmada» y el fallo al armar requieren un panel vinculado. Para ver o cambiar una selección, elige el evento o sensor en los botones siguientes.",
         "menu_options": {
           "event": "Editar evento",
           "sensor": "Editar sensor",
@@ -122,13 +124,21 @@
       "options": {
         "never": "Nunca al abrir",
         "disarmed": "Al abrir, solo con alarma desarmada",
-        "always": "Al abrir, con cualquier estado de alarma"
+        "always": "Al abrir, siempre (sin requerir Alarmo)"
       }
     },
     "sensor_summary": {
       "options": {
         "failed_to_arm": "Si impide armar",
-        "disabled": "Sin disparadores activos"
+        "disabled": "Sin disparadores activos",
+        "close": "Cierre / desactivación"
+      }
+    },
+    "on_close": {
+      "options": {
+        "never": "Nunca al cerrar",
+        "disarmed": "Al cerrar, solo con alarma desarmada",
+        "always": "Al cerrar, siempre (sin requerir Alarmo)"
       }
     }
   },

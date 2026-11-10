@@ -88,15 +88,20 @@ class SoundOptions(OptionsFlow):
             rule = sensor_rules.get(entity_id)
             conditions = []
             if rule:
-                if rule.get("failed_to_arm", True):
+                if rule.get("sound") and rule.get("failed_to_arm", True):
                     conditions.append(translated("sensor_summary", "failed_to_arm"))
                 mode = rule.get("on_open", "never")
-                if mode != "never":
+                if rule.get("sound") and mode != "never":
                     conditions.append(translated("on_open", mode))
-                if not conditions:
+                if not conditions and not rule.get("close_sound"):
                     conditions.append(translated("sensor_summary", "disabled"))
             suffix = f" · {plain(', '.join(conditions))}" if conditions else ""
             lines.append(f"- {plain(name)}: {sound(rule)}{suffix}")
+            if rule and rule.get("close_sound"):
+                close_label = translated("sensor_summary", "close")
+                close_mode = translated("on_close", rule.get("on_close", "never"))
+                close_audio = sound({**rule, "sound": rule["close_sound"]})
+                lines.append(f"  - {plain(close_label)}: {close_audio} · {plain(close_mode)}")
         values["sensors"] = "\n".join(lines) or "—"
         return self.async_show_menu(
             step_id="overview", menu_options=["event", "sensor", "alarm", "init"],
@@ -198,13 +203,15 @@ class SoundOptions(OptionsFlow):
         current = rules.get(self._key, {})
         errors = {}
         if user_input is not None:
-            if not user_input.get("sound"):
+            if not user_input.get("sound") and not (section == SENSOR_RULES and user_input.get("close_sound")):
                 rules.pop(self._key, None)
             else:
                 try:
-                    await self._validate_sound(user_input["sound"])
+                    for field in ("sound", "close_sound") if section == SENSOR_RULES else ("sound",):
+                        if user_input.get(field):
+                            await self._validate_sound(user_input[field])
                 except HomeAssistantError:
-                    errors["sound"] = "local_sound_required"
+                    errors[field] = "local_sound_required"
                 else:
                     rules[self._key] = user_input
             if not errors:
@@ -218,6 +225,11 @@ class SoundOptions(OptionsFlow):
         if section == RULES and self._key == "triggered":
             fields[validation.Optional("repeat", default=True)] = selector.BooleanSelector()
         if section == SENSOR_RULES:
+            fields[validation.Optional("close_sound")] = media_selector()
+            fields[validation.Required("on_close", default="never")] = selector.SelectSelector({
+                "options": ["never", "disarmed", "always"], "translation_key": "on_close",
+                "mode": selector.SelectSelectorMode.DROPDOWN,
+            })
             fields[validation.Required("failed_to_arm", default=True)] = selector.BooleanSelector()
             fields[validation.Required("on_open", default="never")] = selector.SelectSelector({
                 "options": ["never", "disarmed", "always"], "translation_key": "on_open",
