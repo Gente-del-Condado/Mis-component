@@ -1,11 +1,16 @@
 {
   "domain": "pgm_forgejo_backup",
   "name": "Private Git Manager · Forgejo Backup",
-  "codeowners": [],
+  "codeowners": [
+    "@Gente-del-Condado"
+  ],
   "config_flow": true,
-  "dependencies": ["backup"],
+  "dependencies": [
+    "backup"
+  ],
   "documentation": "https://github.com/Gente-del-Condado/HA-Private-Git-Manager/blob/main/FORGEJO_BACKUPS.md",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "version": "0.2.0"
+  "version": "0.2.0",
+  "issue_tracker": "https://github.com/Gente-del-Condado/HA-Private-Git-Manager/issues"
 }
