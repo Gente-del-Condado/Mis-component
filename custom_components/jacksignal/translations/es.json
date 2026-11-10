@@ -20,7 +20,8 @@
           "event": "Asignar sonido a un evento de Alarmo",
           "sensor": "Asignar sonido a un sensor abierto",
           "preview": "Probar un sonido por el jack",
-          "dlna": "DLNA: red y puerto"
+          "dlna": "DLNA: red y puerto",
+          "overview": "Ver sonidos asignados"
         }
       },
       "alarm": {
@@ -47,17 +48,19 @@
       },
       "sensor": {
         "title": "Elige un sensor",
-        "description": "Esta regla se aplica cuando Alarmo no puede armar porque este sensor está abierto.",
+        "description": "Elige un sensor para ver o editar su sonido. En el siguiente paso puedes elegir cuándo debe sonar. Requiere un panel vinculado en Vincular Alarmo.",
         "data": {
           "sensor": "Sensor"
         }
       },
       "sensor_sound": {
         "title": "Sonido y prioridad del sensor",
-        "description": "Borra el sonido para eliminar la regla. Si varios sensores impiden armar, suena el aviso de mayor prioridad.",
+        "description": "Borra el sonido para eliminar la regla. El aviso al abrir se dispara al pasar de cerrado a abierto, nunca al reiniciar o recuperar un sensor desconectado. Si varios sensores impiden armar, suena el de mayor prioridad. Todas las reproducciones respetan las prioridades de JackSignal.",
         "data": {
           "sound": "Sonido",
-          "priority": "Prioridad"
+          "priority": "Prioridad",
+          "failed_to_arm": "Avisar si impide armar Alarmo",
+          "on_open": "Aviso al abrir / activarse"
         }
       },
       "preview": {
@@ -75,6 +78,16 @@
           "address": "Interfaz / IPv4 de escucha",
           "port": "Puerto HTTP",
           "discovery": "Descubrimiento automático SSDP (UDP 1900)"
+        }
+      },
+      "overview": {
+        "title": "Sonidos asignados",
+        "description": "Panel vinculado: {alarm}\n\n**Eventos de Alarmo**\n\n- Alarma disparada: {triggered}\n- Cuenta atrás de entrada: {pending}\n- Cuenta atrás de salida: {arming}\n- Alarma armada: {armed}\n- Alarma desarmada: {disarmed}\n- Fallo al armar: {failed_to_arm}\n\n**Sensores**\n\n{sensors}\n\nSe muestran los sensores de apertura de Home Assistant y cualquier otro sensor con una regla guardada; no es la lista de sensores vinculados a Alarmo.\n\n— = Sin sonido asignado. P0 = Baja, P1 = Normal, P2 = Alta, P3 = Crítica. ↻ = Repetición.\n\nCada sensor muestra sus condiciones de reproducción. Las reglas de sensores requieren un panel de alarma vinculado. Para ver o cambiar una selección, elige el evento o sensor en los botones siguientes.",
+        "menu_options": {
+          "event": "Editar evento",
+          "sensor": "Editar sensor",
+          "alarm": "Vincular Alarmo",
+          "init": "Volver"
         }
       }
     },
@@ -103,6 +116,19 @@
         "armed": "Alarma armada",
         "disarmed": "Alarma desarmada",
         "failed_to_arm": "Fallo al armar"
+      }
+    },
+    "on_open": {
+      "options": {
+        "never": "Nunca al abrir",
+        "disarmed": "Al abrir, solo con alarma desarmada",
+        "always": "Al abrir, con cualquier estado de alarma"
+      }
+    },
+    "sensor_summary": {
+      "options": {
+        "failed_to_arm": "Si impide armar",
+        "disabled": "Sin disparadores activos"
       }
     }
   },

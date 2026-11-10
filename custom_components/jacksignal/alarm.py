@@ -1,8 +1,8 @@
 """Route Alarmo state changes and failed arming events to the player."""
 
 import asyncio
-from collections.abc import Callable, Mapping
 import logging
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from homeassistant.core import Event, HomeAssistant
@@ -39,10 +39,38 @@ class AlarmSounds:
         """Subscribe only if the user selected an alarm panel."""
         if not self.alarm:
             return []
-        return [
+        subscriptions = [
             async_track_state_change_event(self.hass, [self.alarm], self._state_changed),
             self.hass.bus.async_listen("alarmo_failed_to_arm", self._failed_to_arm),
         ]
+        opening_sensors = [entity_id for entity_id, rule in self.sensor_rules.items()
+                           if rule.get("on_open", "never") in {"disarmed", "always"}]
+        if opening_sensors:
+            subscriptions.append(async_track_state_change_event(
+                self.hass, opening_sensors, self._sensor_opened,
+            ))
+        return subscriptions
+
+    async def _sensor_opened(self, event: Event) -> None:
+        """Only an actual closed-to-open transition triggers an opening sound."""
+        old, new = event.data.get("old_state"), event.data.get("new_state")
+        if old is None or new is None or old.state != "off" or new.state != "on":
+            return
+        entity_id = event.data["entity_id"]
+        async with self._lock:
+            rule = self.sensor_rules.get(entity_id)
+            if not self.alarm or not rule:
+                return
+            mode = rule.get("on_open", "never")
+            if mode not in {"disarmed", "always"}:
+                return
+            panel = self.hass.states.get(self.alarm)
+            if mode == "disarmed" and (panel is None or panel.state != "disarmed"):
+                return
+            current = self.hass.states.get(entity_id)
+            if current is None or current.state != "on":
+                return
+            await self._play(rule, f"sensor_open:{entity_id}")
 
     def start(self) -> None:
         """Own subscriptions so options can replace them without reloading playback."""
@@ -114,6 +142,7 @@ class AlarmSounds:
                     self.sensor_rules[entity_id]
                     for entity_id in sensors
                     if entity_id in self.sensor_rules
+                    and self.sensor_rules[entity_id].get("failed_to_arm", True)
                 ]
                 if matches:
                     rule = max(matches, key=lambda item: Priority[item["priority"].upper()])

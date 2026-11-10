@@ -1,10 +1,14 @@
 """Native settings panel for Alarmo and sound assignments."""
 
+import re
+from urllib.parse import unquote
+
 from homeassistant.components import network
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import (
     ALARM,
@@ -44,7 +48,59 @@ class SoundOptions(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
-            step_id="init", menu_options=["alarm", "event", "sensor", "preview", "dlna"],
+            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "preview", "dlna"],
+        )
+
+    async def async_step_overview(self, user_input=None):
+        """Show saved assignments without changing them or playing any audio."""
+        options = self.config_entry.options
+        translations = await async_get_translations(
+            self.hass, self.hass.config.language, "selector", {DOMAIN},
+        )
+
+        def translated(group, value):
+            return translations.get(f"component.{DOMAIN}.selector.{group}.options.{value}", value)
+
+        def plain(value):
+            return re.sub(r"([\\`*_{}\[\]()<>#!|])", r"\\\1", str(value).replace("\n", " "))
+
+        def sound(rule):
+            if not rule or not rule.get("sound"):
+                return "—"
+            media = rule["sound"]["media_content_id"]
+            label = unquote(media.removeprefix(LOCAL_PREFIX))
+            priority = Priority[rule["priority"].upper()].value
+            repeat = " ↻" if rule.get("repeat") else ""
+            return f"{plain(label)} · P{priority}{repeat}"
+
+        panel_id = options.get(ALARM)
+        panel = self.hass.states.get(panel_id) if panel_id else None
+        values = {kind: sound(options.get(RULES, {}).get(kind)) for kind in EVENTS}
+        values["alarm"] = plain(f"{panel.name} ({panel_id})" if panel else panel_id or "—")
+        sensor_rules = options.get(SENSOR_RULES, {})
+        sensors = {state.entity_id: state for state in self.hass.states.async_all("binary_sensor")
+                   if state.attributes.get("device_class") in {"door", "window", "opening", "garage_door"}
+                   or state.entity_id in sensor_rules}
+        lines = []
+        for entity_id in sorted(sensors.keys() | sensor_rules.keys()):
+            state = sensors.get(entity_id)
+            name = f"{state.name} ({entity_id})" if state else entity_id
+            rule = sensor_rules.get(entity_id)
+            conditions = []
+            if rule:
+                if rule.get("failed_to_arm", True):
+                    conditions.append(translated("sensor_summary", "failed_to_arm"))
+                mode = rule.get("on_open", "never")
+                if mode != "never":
+                    conditions.append(translated("on_open", mode))
+                if not conditions:
+                    conditions.append(translated("sensor_summary", "disabled"))
+            suffix = f" · {plain(', '.join(conditions))}" if conditions else ""
+            lines.append(f"- {plain(name)}: {sound(rule)}{suffix}")
+        values["sensors"] = "\n".join(lines) or "—"
+        return self.async_show_menu(
+            step_id="overview", menu_options=["event", "sensor", "alarm", "init"],
+            description_placeholders=values,
         )
 
     async def async_step_dlna(self, user_input=None):
@@ -161,6 +217,12 @@ class SoundOptions(OptionsFlow):
         }
         if section == RULES and self._key == "triggered":
             fields[validation.Optional("repeat", default=True)] = selector.BooleanSelector()
+        if section == SENSOR_RULES:
+            fields[validation.Required("failed_to_arm", default=True)] = selector.BooleanSelector()
+            fields[validation.Required("on_open", default="never")] = selector.SelectSelector({
+                "options": ["never", "disarmed", "always"], "translation_key": "on_open",
+                "mode": selector.SelectSelectorMode.DROPDOWN,
+            })
         return self.async_show_form(
             step_id=step,
             data_schema=self.add_suggested_values_to_schema(validation.Schema(fields), user_input or current),

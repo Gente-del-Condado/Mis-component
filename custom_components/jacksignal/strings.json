@@ -20,7 +20,8 @@
           "event": "Assign sound to an Alarmo event",
           "sensor": "Assign sound to an open sensor",
           "preview": "Test a sound on the jack",
-          "dlna": "DLNA: network and port"
+          "dlna": "DLNA: network and port",
+          "overview": "View sound assignments"
         }
       },
       "alarm": {
@@ -47,17 +48,19 @@
       },
       "sensor": {
         "title": "Choose a sensor",
-        "description": "This rule applies when Alarmo cannot arm because this sensor is open.",
+        "description": "Choose a sensor to view or edit its sound. Choose when it plays in the next step. Requires a linked panel under Link Alarmo.",
         "data": {
           "sensor": "Sensor"
         }
       },
       "sensor_sound": {
         "title": "Sensor sound and priority",
-        "description": "Clear the sound to remove the rule. If several sensors block arming, the highest-priority matching sound plays.",
+        "description": "Clear the sound to remove the rule. Opening alerts require a closed-to-open transition, not a restart or recovery from unavailable. If multiple sensors prevent arming, the highest priority plays. All playback respects JackSignal priorities.",
         "data": {
           "sound": "Sound",
-          "priority": "Priority"
+          "priority": "Priority",
+          "failed_to_arm": "Play when preventing Alarmo from arming",
+          "on_open": "Play when opened / activated"
         }
       },
       "preview": {
@@ -75,6 +78,16 @@
           "address": "Listening interface / IPv4",
           "port": "HTTP port",
           "discovery": "Automatic SSDP discovery (UDP 1900)"
+        }
+      },
+      "overview": {
+        "title": "Sound assignments",
+        "description": "Linked panel: {alarm}\n\n**Alarmo events**\n\n- Alarm triggered: {triggered}\n- Entry delay: {pending}\n- Exit delay: {arming}\n- Armed: {armed}\n- Disarmed: {disarmed}\n- Failed to arm: {failed_to_arm}\n\n**Sensors**\n\n{sensors}\n\nShows Home Assistant opening sensors and any other sensors with saved rules, not the list of sensors linked to Alarmo.\n\n— = No sound assigned. P0 = Low, P1 = Normal, P2 = High, P3 = Critical. ↻ = Repeat.\n\nEach sensor shows its playback conditions. Sensor rules require a linked alarm panel. Use the buttons below to view or edit an event or sensor selection.",
+        "menu_options": {
+          "event": "Edit event",
+          "sensor": "Edit sensor",
+          "alarm": "Link Alarmo",
+          "init": "Back"
         }
       }
     },
@@ -103,6 +116,19 @@
         "armed": "Armed",
         "disarmed": "Disarmed",
         "failed_to_arm": "Failed to arm"
+      }
+    },
+    "on_open": {
+      "options": {
+        "never": "Never on opening",
+        "disarmed": "On opening, only while disarmed",
+        "always": "On opening, with any alarm state"
+      }
+    },
+    "sensor_summary": {
+      "options": {
+        "failed_to_arm": "When preventing arming",
+        "disabled": "No active triggers"
       }
     }
   },
