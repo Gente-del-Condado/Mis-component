@@ -26,9 +26,13 @@ El repositorio `Mis-component` agrupa varias integraciones; para HACS utiliza **
 
 Para actualizar: actualiza la aplicación, vuelve a pulsar **Iniciar**, comprueba el registro y reinicia Home Assistant. No actives el inicio automático: el instalador usa `manual_only`. Conserva los sonidos y la configuración; al reemplazar el código guarda la versión anterior en `/config/.jacksignal-previous`.
 
-### Con HACS / Marketplace o instalación manual
+### Con Marketplace (Home Assistant 2026.11 o posterior)
 
-Añade `https://github.com/Gente-del-Condado/jacksignal-ha` como repositorio personalizado de categoría **Integración** e instálalo. Reinicia Home Assistant y añade JackSignal desde **Dispositivos y servicios**. Tras actualizar el código, vuelve a reiniciar Home Assistant.
+Añade `https://github.com/Gente-del-Condado/jacksignal-ha` como repositorio personalizado de categoría **Integración** e instálalo. En una primera instalación, si JackSignal no se había cargado antes, Marketplace puede abrir su configuración inmediatamente: JackSignal dispone de configuración gráfica y no necesita un reinicio previo en ese caso.
+
+Si ya estaba cargado o estás actualizando, sigue el aviso de reinicio que muestre Home Assistant. No confundas esta instalación con **JackSignal Installer**, que copia archivos y sigue requiriendo iniciar el instalador y reiniciar Home Assistant. Para una copia manual o un gestor antiguo, reinicia después de instalar el código.
+
+Marketplace ya no administra AppDaemon ni Python Scripts. JackSignal es una **integración**, no uno de esos tipos, por lo que ese cambio no le afecta. [Funcionamiento oficial de Marketplace](https://contributors.home-assistant.io/marketplace/how-it-works/).
 
 [Instalar desde Marketplace](https://my.home-assistant.io/redirect/marketplace_repository/?owner=Gente-del-Condado&repository=jacksignal-ha&category=integration).
 
@@ -143,6 +147,6 @@ La instalación y la reproducción local han sido probadas en una Raspberry Pi 4
 
 JackSignal provides a Home Assistant media player using FFmpeg and the default PulseAudio output. It supports Alarmo alerts, independent binary-sensor opening/closing sounds, sensor speech configured without YAML, and an optional audio-only DLNA renderer. Configure a TTS engine separately before using speech.
 
-Install the integration from the custom **jacksignal-ha** repository, or use **JackSignal Installer** from **Mis-app** on Home Assistant OS. With the installer, click **Start**, check its log, then restart Home Assistant. Repeat those steps after updating the installer. It intentionally stops after copying the integration and does not support automatic startup. Use one installation method to manage updates.
+Install the integration from the custom **jacksignal-ha** repository in Marketplace, or use **JackSignal Installer** from **Mis-app** on Home Assistant OS. Marketplace can configure a first installation immediately if the integration has not been loaded before; follow its restart notice for updates or previously loaded integrations. With the installer, click **Start**, check its log, then restart Home Assistant. Repeat those steps after updating the installer. It intentionally stops after copying the integration and does not support automatic startup. Use one installation method to manage updates.
 
 Upload clips in Home Assistant Media. Under JackSignal's configuration, assign sounds and speech rules and review assignments. Use the visual **Play alert** or **Speak sensor value** actions in any automation. Higher or equal priorities replace current audio; lower priorities are dropped. A repeating critical alarm siren is protected. Interrupted music is not resumed. DLNA is not Cast, AirPlay or Spotify Connect.
