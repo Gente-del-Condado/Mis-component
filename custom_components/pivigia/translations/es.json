@@ -1,0 +1,106 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar PiVigia",
+        "description": "Instala e inicia primero el complemento o servidor PiVigia. Introduce su URL completa con el puerto del panel, por ejemplo http://192.0.2.101:8099. Usa el token del panel de PiVigia, no tu contraseña de Home Assistant.",
+        "data": {
+          "url": "Dirección del panel de PiVigia",
+          "token": "Token de administración de PiVigia"
+        }
+      },
+      "reconfigure": {
+        "title": "Cambiar conexión de PiVigia",
+        "description": "Actualiza la IP, nombre o puerto del panel. Deja el token vacío para conservar el guardado. La conexión se comprobará antes de guardar.",
+        "data": {
+          "url": "Dirección del panel de PiVigia",
+          "token": "Token de administración de PiVigia"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Actualizar token de PiVigia",
+        "description": "PiVigia ha rechazado el token guardado. Introduce el token actual del panel y comprueba la URL.",
+        "data": {
+          "url": "Dirección del panel de PiVigia",
+          "token": "Token de administración de PiVigia"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede conectar. Comprueba que PiVigia esté iniciado y que la IP y el puerto sean accesibles desde Home Assistant.",
+      "invalid_auth": "PiVigia ha rechazado el token. Usa el token del panel, con al menos 16 caracteres.",
+      "invalid_url": "Indica una URL HTTP o HTTPS válida, sin usuario, contraseña, parámetros ni fragmento. La respuesta debe ser de PiVigia."
+    },
+    "abort": {
+      "already_configured": "Este servidor PiVigia ya está configurado.",
+      "reconfigure_successful": "Conexión actualizada.",
+      "reauth_successful": "Token actualizado."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "sent": {
+        "name": "PiVigia Enviados",
+        "unit_of_measurement": "correos"
+      },
+      "queued": {
+        "name": "PiVigia En cola",
+        "unit_of_measurement": "correos"
+      },
+      "filtered": {
+        "name": "PiVigia Filtrados",
+        "unit_of_measurement": "correos"
+      },
+      "failed": {
+        "name": "PiVigia Fallidos",
+        "unit_of_measurement": "correos"
+      },
+      "version": {
+        "name": "PiVigia Versión del servidor"
+      },
+      "model": {
+        "name": "PiVigia Modelo activo"
+      },
+      "last_person": {
+        "name": "PiVigia Última detección de persona"
+      },
+      "last_car": {
+        "name": "PiVigia Última detección de coche"
+      },
+      "last_animal": {
+        "name": "PiVigia Última detección de animal"
+      },
+      "last_motion": {
+        "name": "PiVigia Última detección de movimiento RTSP"
+      }
+    },
+    "binary_sensor": {
+      "person": {
+        "name": "PiVigia Persona detectada recientemente"
+      },
+      "car": {
+        "name": "PiVigia Coche detectado recientemente"
+      },
+      "animal": {
+        "name": "PiVigia Animal detectado recientemente"
+      },
+      "motion": {
+        "name": "PiVigia Movimiento RTSP reciente"
+      },
+      "model_ready": {
+        "name": "PiVigia Modelo disponible"
+      },
+      "worker_alive": {
+        "name": "PiVigia Procesamiento activo"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_auth": {
+      "message": "El token de PiVigia no es válido"
+    },
+    "cannot_connect": {
+      "message": "No se puede consultar PiVigia"
+    }
+  }
+}

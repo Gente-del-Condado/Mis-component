@@ -1,0 +1,106 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect PiVigia",
+        "description": "Install and start the PiVigia add-on or server first. Enter its full URL including the panel port, for example http://192.0.2.101:8099. Use the PiVigia panel token, not your Home Assistant password.",
+        "data": {
+          "url": "PiVigia panel address",
+          "token": "PiVigia administration token"
+        }
+      },
+      "reconfigure": {
+        "title": "Change PiVigia connection",
+        "description": "Update the panel IP, hostname or port. Leave the token empty to keep the saved one. The connection will be checked before saving.",
+        "data": {
+          "url": "PiVigia panel address",
+          "token": "PiVigia administration token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Update PiVigia token",
+        "description": "PiVigia rejected the saved token. Enter the current panel token and check the URL.",
+        "data": {
+          "url": "PiVigia panel address",
+          "token": "PiVigia administration token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect. Check that PiVigia is running and the IP and port are accessible from Home Assistant.",
+      "invalid_auth": "PiVigia rejected the token. Use the panel token, with at least 16 characters.",
+      "invalid_url": "Enter a valid HTTP or HTTPS URL without username, password, parameters or fragment. The response must be from PiVigia."
+    },
+    "abort": {
+      "already_configured": "This PiVigia server is already configured.",
+      "reconfigure_successful": "Connection updated.",
+      "reauth_successful": "Token updated."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "sent": {
+        "name": "PiVigia Sent",
+        "unit_of_measurement": "emails"
+      },
+      "queued": {
+        "name": "PiVigia Queued",
+        "unit_of_measurement": "emails"
+      },
+      "filtered": {
+        "name": "PiVigia Filtered",
+        "unit_of_measurement": "emails"
+      },
+      "failed": {
+        "name": "PiVigia Failed",
+        "unit_of_measurement": "emails"
+      },
+      "version": {
+        "name": "PiVigia Server version"
+      },
+      "model": {
+        "name": "PiVigia Active model"
+      },
+      "last_person": {
+        "name": "PiVigia Last person detection"
+      },
+      "last_car": {
+        "name": "PiVigia Last car detection"
+      },
+      "last_animal": {
+        "name": "PiVigia Last animal detection"
+      },
+      "last_motion": {
+        "name": "PiVigia Last RTSP motion detection"
+      }
+    },
+    "binary_sensor": {
+      "person": {
+        "name": "PiVigia Person detected recently"
+      },
+      "car": {
+        "name": "PiVigia Car detected recently"
+      },
+      "animal": {
+        "name": "PiVigia Animal detected recently"
+      },
+      "motion": {
+        "name": "PiVigia Recent RTSP motion"
+      },
+      "model_ready": {
+        "name": "PiVigia Model available"
+      },
+      "worker_alive": {
+        "name": "PiVigia Processing active"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_auth": {
+      "message": "The PiVigia token is invalid"
+    },
+    "cannot_connect": {
+      "message": "Cannot query PiVigia"
+    }
+  }
+}

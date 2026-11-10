@@ -1,0 +1,11 @@
+{
+  "domain": "pivigia",
+  "name": "PiVigia",
+  "version": "0.1.4",
+  "config_flow": true,
+  "documentation": "https://gentedelcondado.es/forgejo/wolfbelmi88/pivigia",
+  "codeowners": ["@Gente-del-Condado"],
+  "iot_class": "local_polling",
+  "requirements": [],
+  "issue_tracker": "https://gentedelcondado.es/forgejo/wolfbelmi88/pivigia/issues"
+}
