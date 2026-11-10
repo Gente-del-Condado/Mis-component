@@ -1,7 +1,9 @@
 {
   "domain": "jacksignal",
   "name": "JackSignal",
-  "codeowners": [],
+  "codeowners": [
+    "@Gente-del-Condado"
+  ],
   "config_flow": true,
   "dependencies": [
     "media_source",
@@ -9,9 +11,11 @@
   ],
   "integration_type": "device",
   "iot_class": "local_push",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "requirements": [
     "pulsectl==24.12.0",
     "async-upnp-client==0.49.0"
-  ]
+  ],
+  "documentation": "https://github.com/Gente-del-Condado/jacksignal-ha",
+  "issue_tracker": "https://github.com/Gente-del-Condado/jacksignal-ha/issues"
 }
