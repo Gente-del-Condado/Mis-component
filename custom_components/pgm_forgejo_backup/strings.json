@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Private Forgejo repository",
+        "title": "Private Forgejo or GitHub repository",
         "description": "Use the SSH clone URL of a private repository dedicated to backups.",
         "data": {
           "url": "SSH clone URL"
@@ -30,16 +30,16 @@
     "step": {
       "init": {
         "title": "Direct web download",
-        "description": "Use the HTTPS URL of the private backup repository and a token restricted to that repository with write:repository. Leave the token blank to keep the saved token for the same URL. Clear the URL to disable publishing attachments.",
+        "description": "Use the HTTPS URL of the private repository and a token restricted to that repository. On Forgejo use write:repository. On GitHub use Contents: Read and write. Leave the token blank to keep the saved token for the same URL. Clear the URL to disable publishing attachments.",
         "data": {
-          "web_url": "Forgejo repository web URL",
-          "release_token": "Forgejo access token"
+          "web_url": "Repository web URL",
+          "release_token": "Access token"
         }
       }
     },
     "error": {
       "invalid_web_url": "Use the HTTPS URL of the same backup repository.",
-      "token_required": "Enter a Forgejo access token.",
+      "token_required": "Enter a Access token.",
       "release_sso_required": "YunoHost redirects the Forgejo API to its login page. Check the Forgejo API access permission.",
       "release_access": "The token must have write access to the private backup repository."
     }

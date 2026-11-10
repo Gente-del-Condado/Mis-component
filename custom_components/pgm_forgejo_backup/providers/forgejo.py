@@ -138,6 +138,10 @@ def scan_host(url):
 class Forgejo:
     """Cada copia tiene referencias propias y una ficha ligera para el inventario."""
 
+    max_size = MAX_SIZE
+    readme = REPOSITORY_README
+    provider_name = "Forgejo"
+
     def __init__(self, url, private_key, known_host, releases=None, *, time_zone="UTC"):
         ssh_address(url)
         self.url = url
@@ -259,6 +263,13 @@ class Forgejo:
         except (KeyError, TypeError, ValueError, OverflowError):
             return None
 
+    def _links(self, backup_id):
+        return (
+            f"../../../src/tag/pgm-meta-{backup_id}/metadata.json",
+            f"../../../archive/pgm-data-{backup_id}.zip",
+            f"../../../releases/download/pgm-data-{backup_id}/backup.tar",
+        )
+
     def _readme_index(self, git):
         # Ordena por el instante original, incluso si se repite una hora al cambiar el reloj.
         undated = datetime.min.replace(tzinfo=UTC)
@@ -282,13 +293,16 @@ class Forgejo:
             # Los nombres vienen de los metadatos. Escapa la puntuación para renderizarlos como texto.
             name = "".join(c if c.isalnum() or c == " " else f"&#{ord(c)};" for c in name)
             size = f"{backup['size'] / 1024**2:.2f} MiB"
+            ficha, archive, tar = self._links(backup_id)
             direct = ""
             if self.releases:
                 try:
                     if self.releases.available(backup_id, backup["size"]):
-                        direct = f"[Descargar backup.tar](../../../releases/download/pgm-data-{backup_id}/backup.tar) · "
+                        direct = f"[Descargar backup.tar]({tar}) · "
                 except ReleaseError:
-                    _LOGGER.warning("No se pudo consultar el adjunto de una copia en Forgejo")
+                    _LOGGER.warning(
+                        "No se pudo consultar el adjunto de una copia en %s", self.provider_name
+                    )
             date = self._date(backup)
             try:
                 displayed = (
@@ -300,8 +314,8 @@ class Forgejo:
                 displayed = "—"
             lines.append(
                 f"| {displayed} | {name or backup_id} | {size} | "
-                f"[Ficha](../../../src/tag/pgm-meta-{backup_id}/metadata.json) · "
-                f"{direct}[Descargar ZIP](../../../archive/pgm-data-{backup_id}.zip) |"
+                f"[Ficha]({ficha}) · "
+                f"{direct}[Descargar ZIP]({archive}) |"
             )
         return "\n".join([*lines, "", INDEX_END, ""])
 
@@ -311,7 +325,7 @@ class Forgejo:
             for _ in range(3):
                 branches = self._remote_refs(git, "refs/heads/*")
                 parent = branches.get(DEFAULT_BRANCH)
-                current = REPOSITORY_README
+                current = self.readme
                 suffix = ""
                 if branches:
                     if not parent:
@@ -323,13 +337,13 @@ class Forgejo:
                     if int(git("cat-file", "-s", f"{parent}:README.md")) > META_LIMIT:
                         return
                     current = git("show", f"{parent}:README.md").decode(errors="replace")
-                    if current != REPOSITORY_README:
-                        if not current.startswith(REPOSITORY_README + "\n" + INDEX_START + "\n"):
+                    if current != self.readme:
+                        if not current.startswith(self.readme + "\n" + INDEX_START + "\n"):
                             return
                         _, marker, suffix = current.partition("\n" + INDEX_END + "\n")
                         if not marker:
                             return
-                updated = REPOSITORY_README + "\n" + self._readme_index(git) + suffix
+                updated = self.readme + "\n" + self._readme_index(git) + suffix
                 if current == updated:
                     return
                 readme = self._blob(git, updated.encode())
@@ -346,9 +360,13 @@ class Forgejo:
                     if self._remote_refs(git, "refs/heads/*") == branches:
                         raise
         except ForgejoError:
-            _LOGGER.warning("No se pudo actualizar el índice de copias en el README de Forgejo")
+            _LOGGER.warning(
+                "No se pudo actualizar el índice de copias en el README de %s", self.provider_name
+            )
             return
-        _LOGGER.warning("El README de Forgejo cambió mientras se actualizaba el índice")
+        _LOGGER.warning(
+            "El README de %s cambió mientras se actualizaba el índice", self.provider_name
+        )
 
     def _publish_readme(self, git, source, metadata, digest):
         if self.releases:
@@ -360,11 +378,13 @@ class Forgejo:
 
     def upload(self, source, metadata):
         if metadata.get("protected") is not True:
-            raise ForgejoError("Forgejo solo acepta copias con cifrado nativo.")
+            raise ForgejoError("El destino Git solo acepta copias con cifrado nativo.")
         meta, data = self._refs(metadata["backup_id"])
         size = metadata["size"]
-        if not isinstance(size, int) or not 0 < size <= MAX_SIZE:
-            raise ForgejoError("La copia supera el límite de 8 GiB o está vacía.")
+        if not isinstance(size, int) or not 0 < size <= self.max_size:
+            raise ForgejoError(
+                f"La copia supera el límite de {self.max_size // 1024**2} MiB o está vacía."
+            )
         with self._session() as git:
             remote = self._remote_refs(git, meta, data)
             digest = hashlib.sha256()
@@ -499,7 +519,7 @@ class Forgejo:
                     self.releases.delete(backup_id, record["sha256"])
                 except ReleaseError as exc:
                     raise ForgejoError(
-                        "No se pudo retirar el adjunto de la copia en Forgejo."
+                        f"No se pudo retirar el adjunto de la copia en {self.provider_name}."
                     ) from exc
             git(
                 "push",

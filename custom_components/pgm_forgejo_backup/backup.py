@@ -14,8 +14,9 @@ from homeassistant.components.backup import (
 from homeassistant.core import callback
 
 from . import DOMAIN, LISTENERS
-from .providers.forgejo import MAX_SIZE, Forgejo, ForgejoError, MissingBackup
+from .providers.forgejo import Forgejo, ForgejoError, MissingBackup
 from .providers.forgejo_releases import Releases
+from .providers.github import GitHub, GitHubReleases, is_github
 
 
 async def async_get_backup_agents(hass, **kwargs):
@@ -42,12 +43,15 @@ class ForgejoBackupAgent(BackupAgent):
         self.name = entry.title
         self.unique_id = entry.entry_id
         options = entry.options
+        github = is_github(entry.data["url"])
+        release_type = GitHubReleases if github else Releases
+        provider_type = GitHub if github else Forgejo
         releases = (
-            Releases(options["web_url"], options["release_token"])
+            release_type(options["web_url"], options["release_token"])
             if options.get("web_url")
             else None
         )
-        self.provider = Forgejo(
+        self.provider = provider_type(
             entry.data["url"],
             entry.data["identity"],
             entry.data["known_host"],
@@ -97,8 +101,10 @@ class ForgejoBackupAgent(BackupAgent):
         # Verifica antes de abrir el flujo. La contraseña y las claves de cifrado siguen en Core.
         if backup.protected is not True:
             raise BackupAgentError("Activa el cifrado para esta ubicación en Home Assistant.")
-        if not 0 < backup.size <= MAX_SIZE:
-            raise BackupAgentError("El tamaño de la copia supera el límite de 8 GiB o está vacío.")
+        if not 0 < backup.size <= self.provider.max_size:
+            raise BackupAgentError(
+                f"La copia supera el límite de {self.provider.max_size // 1024**2} MiB o está vacía."
+            )
         async with self._temporary_archive() as path:
             try:
                 size = 0
