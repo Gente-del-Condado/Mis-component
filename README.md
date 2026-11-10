@@ -6,12 +6,14 @@ Catálogo de integraciones de Home Assistant Core para **Private Git Manager**.
 
 ## Integraciones disponibles
 
-| Integración | Carpeta |
-| --- | --- |
-| Private Git Manager · Forgejo Backup | [pgm_forgejo_backup](custom_components/pgm_forgejo_backup/) |
-| PiVigia | [pivigia](custom_components/pivigia/) |
-| JackSignal | [jacksignal](custom_components/jacksignal/) |
-| Headscale Gateway | [headscale_gateway](custom_components/headscale_gateway/) |
+En Home Assistant 2026.11 o posterior, usa el botón de cada integración para abrir su repositorio en el Marketplace. Si se solicita, conecta GitHub, añade el repositorio como **Integración** y pulsa **Instalar**.
+
+| Integración | Carpeta | Marketplace |
+| --- | --- | --- |
+| Private Git Manager · Forgejo Backup | [pgm_forgejo_backup](custom_components/pgm_forgejo_backup/) | [![Instalar Private Git Manager · Forgejo Backup desde el Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=Gente-del-Condado&repository=HA-Private-Git-Manager&category=integration) |
+| PiVigia | [pivigia](custom_components/pivigia/) | [![Instalar PiVigia desde el Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=Gente-del-Condado&repository=pivigia-ha&category=integration) |
+| JackSignal | [jacksignal](custom_components/jacksignal/) | [![Instalar JackSignal desde el Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=Gente-del-Condado&repository=jacksignal-ha&category=integration) |
+| Headscale Gateway | [headscale_gateway](custom_components/headscale_gateway/) | [![Instalar Headscale Gateway desde el Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=Gente-del-Condado&repository=headscale-gateway-ha&category=integration) |
 
 Los proyectos publican únicamente su integración mediante GitHub Actions en Mis-component de Forgejo. Forgejo replica el catálogo a GitHub. Para instalar aplicaciones del Supervisor, usa [Mis-app](https://github.com/Gente-del-Condado/Mis-app).
 
