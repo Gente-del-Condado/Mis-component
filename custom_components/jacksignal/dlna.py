@@ -1,12 +1,14 @@
 """Optional LAN audio renderer with SSDP discovery and SOAP/GENA control."""
 
 import asyncio
+import json
 import shutil
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
 from ipaddress import IPv4Address, ip_address
+from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, uuid5
 
@@ -187,6 +189,10 @@ class DlnaReceiver:
 
     async def _start(self, address):
         playback, udn = self.playback, self.udn
+        # Read packaged metadata off the event loop; never duplicate release numbers.
+        manifest = json.loads(await asyncio.to_thread(
+            Path(__file__).with_name("manifest.json").read_text, encoding="utf-8"
+        ))
 
         class Renderer(UpnpServerDevice):
             DEVICE_DEFINITION = DeviceInfo(
@@ -196,8 +202,8 @@ class DlnaReceiver:
                 manufacturer_url=None,
                 model_description="Audio-only receiver with Alarmo priorities",
                 model_name="JackSignal",
-                model_number="0.7.0",
-                model_url=None,
+                model_number=manifest["version"],
+                model_url=manifest["documentation"],
                 serial_number=None,
                 udn=udn,
                 upc=None,
