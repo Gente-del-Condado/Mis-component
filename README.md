@@ -4,6 +4,14 @@
 
 Catálogo de integraciones de Home Assistant Core para **Private Git Manager**.
 
+## JackSignal
+
+Reproductor de audio local con avisos de Alarmo, sonidos independientes al abrir/cerrar sensores, texto a voz configurable sin YAML y receptor DLNA exclusivamente de audio. Todos los avisos comparten las prioridades del reproductor.
+
+[Guía de configuración](custom_components/jacksignal/README.md) · [Repositorio individual para HACS / Marketplace](https://github.com/Gente-del-Condado/jacksignal-ha) · [Instalador para Home Assistant OS](https://github.com/Gente-del-Condado/Mis-app/tree/main/jacksignal_installer).
+
+Elige una sola vía de actualización de la integración. Este catálogo reúne varias integraciones; para HACS utiliza el repositorio individual enlazado.
+
 ## Integraciones disponibles
 
 En Home Assistant 2026.11 o posterior, usa el botón de cada integración para abrir su repositorio en el Marketplace. Si se solicita, conecta GitHub, añade el repositorio como **Integración** y pulsa **Instalar**.
