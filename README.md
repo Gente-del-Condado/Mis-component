@@ -4,6 +4,17 @@
 
 Catálogo de integraciones de Home Assistant Core para **Private Git Manager**.
 
+## Integraciones disponibles
+
+| Integración | Carpeta |
+| --- | --- |
+| Private Git Manager · Forgejo Backup | [pgm_forgejo_backup](custom_components/pgm_forgejo_backup/) |
+| PiVigia | [pivigia](custom_components/pivigia/) |
+| JackSignal | [jacksignal](custom_components/jacksignal/) |
+| Headscale Gateway | [headscale_gateway](custom_components/headscale_gateway/) |
+
+Los proyectos publican únicamente su integración mediante GitHub Actions en Mis-component de Forgejo. Forgejo replica el catálogo a GitHub. Para instalar aplicaciones del Supervisor, usa [Mis-app](https://github.com/Gente-del-Condado/Mis-app).
+
 ## Instalar o actualizar Forgejo Backup
 
 1. En **Repositorios**, añade este catálogo con su URL SSH, rama `main` y una clave de despliegue de lectura. Verifica la huella del servidor y sincroniza.
