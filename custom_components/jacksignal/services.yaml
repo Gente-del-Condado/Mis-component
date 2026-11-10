@@ -1,0 +1,18 @@
+play_sound:
+  fields:
+    sound:
+      required: true
+      selector:
+        media:
+          accept:
+            - audio/*
+    priority:
+      default: normal
+      selector:
+        select:
+          translation_key: priority
+          options:
+            - low
+            - normal
+            - high
+            - critical

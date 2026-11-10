@@ -1,0 +1,139 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Añadir JackSignal",
+        "description": "Crea un reproductor para la salida de audio local. Puedes vincular Alarmo en Configurar."
+      }
+    },
+    "abort": {
+      "already_configured": "El reproductor ya está instalado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "JackSignal",
+        "description": "Sube los clips en Multimedia → Mis archivos multimedia. Usa este menú para probarlos y elegir cuáles debe reproducir Alarmo.",
+        "menu_options": {
+          "alarm": "Vincular Alarmo",
+          "event": "Asignar sonido a un evento de Alarmo",
+          "sensor": "Asignar sonido a un sensor abierto",
+          "preview": "Probar un sonido por el jack",
+          "dlna": "DLNA: red y puerto"
+        }
+      },
+      "alarm": {
+        "title": "Vincular Alarmo",
+        "description": "Elige tu panel de Alarmo. Borra la selección para desvincularlo.",
+        "data": {
+          "alarm": "Panel de alarma"
+        }
+      },
+      "event": {
+        "title": "Elige un evento",
+        "data": {
+          "event": "Evento de Alarmo"
+        }
+      },
+      "event_sound": {
+        "title": "Sonido y prioridad del evento",
+        "description": "Elige un sonido de Mis archivos multimedia. Borra el sonido para eliminar la regla.",
+        "data": {
+          "sound": "Sonido",
+          "priority": "Prioridad",
+          "repeat": "Repetir mientras la alarma esté disparada"
+        }
+      },
+      "sensor": {
+        "title": "Elige un sensor",
+        "description": "Esta regla se aplica cuando Alarmo no puede armar porque este sensor está abierto.",
+        "data": {
+          "sensor": "Sensor"
+        }
+      },
+      "sensor_sound": {
+        "title": "Sonido y prioridad del sensor",
+        "description": "Borra el sonido para eliminar la regla. Si varios sensores impiden armar, suena el aviso de mayor prioridad.",
+        "data": {
+          "sound": "Sonido",
+          "priority": "Prioridad"
+        }
+      },
+      "preview": {
+        "title": "Probar audio",
+        "description": "Elige un clip y pulsa Enviar para reproducirlo por el jack. {status}",
+        "data": {
+          "sound": "Sonido"
+        }
+      },
+      "dlna": {
+        "title": "DLNA: red y puerto",
+        "description": "Elige una IPv4 de una interfaz visible para Home Assistant (Ethernet, Wi-Fi o VPN). Puedes escribir otra IP del mismo equipo. Para VPN sin multicast, desactiva el descubrimiento SSDP y añade http://IP:PUERTO/description.xml en un emisor que admita receptores manuales. La VPN debe permitir las conexiones en ambos sentidos y el acceso a la URL del audio. Una VPN en otro contenedor puede requerir una ruta a la IP local. El receptor no tiene contraseña: úsalo solo en redes de confianza. Alarmo mantiene su prioridad.",
+        "data": {
+          "enabled": "Activar receptor",
+          "address": "Interfaz / IPv4 de escucha",
+          "port": "Puerto HTTP",
+          "discovery": "Descubrimiento automático SSDP (UDP 1900)"
+        }
+      }
+    },
+    "error": {
+      "local_sound_required": "Elige un archivo de audio existente en Mis archivos multimedia.",
+      "higher_priority": "Está sonando un aviso de mayor prioridad.",
+      "ffmpeg_unavailable": "No se pudo iniciar FFmpeg.",
+      "dlna_address": "Comprueba la IPv4 local, el puerto y que FFprobe esté instalado.",
+      "dlna_start": "No se pudo iniciar DLNA. Comprueba que la IP pertenece a este equipo y que el puerto está libre."
+    }
+  },
+  "selector": {
+    "priority": {
+      "options": {
+        "low": "Baja",
+        "normal": "Normal",
+        "high": "Alta",
+        "critical": "Crítica"
+      }
+    },
+    "alarm_event": {
+      "options": {
+        "triggered": "Alarma disparada",
+        "pending": "Cuenta atrás de entrada",
+        "arming": "Cuenta atrás de salida",
+        "armed": "Alarma armada",
+        "disarmed": "Alarma desarmada",
+        "failed_to_arm": "Fallo al armar"
+      }
+    }
+  },
+  "services": {
+    "play_sound": {
+      "name": "Reproducir aviso",
+      "description": "Reproduce un sonido por JackSignal según su prioridad.",
+      "fields": {
+        "sound": {
+          "name": "Sonido",
+          "description": "Elige el audio que quieres reproducir."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Una prioridad igual o superior reemplaza el sonido actual."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_media": {
+      "message": "Elige audio compatible de Mis archivos multimedia o una URL de audio HTTP(S)."
+    },
+    "missing_media": {
+      "message": "No se ha encontrado el audio seleccionado."
+    },
+    "ffmpeg_unavailable": {
+      "message": "No se pudo iniciar FFmpeg."
+    },
+    "audio_unavailable": {
+      "message": "No se pudo controlar el volumen de la salida PulseAudio."
+    }
+  }
+}
