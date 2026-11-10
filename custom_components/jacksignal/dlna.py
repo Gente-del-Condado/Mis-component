@@ -196,7 +196,7 @@ class DlnaReceiver:
                 manufacturer_url=None,
                 model_description="Audio-only receiver with Alarmo priorities",
                 model_name="JackSignal",
-                model_number="0.6.0",
+                model_number="0.7.0",
                 model_url=None,
                 serial_number=None,
                 udn=udn,

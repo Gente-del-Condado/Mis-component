@@ -1,3 +1,12 @@
+speak_sensor:
+  fields:
+    sensor:
+      required: true
+      selector:
+        entity:
+          domain:
+            - sensor
+            - binary_sensor
 play_sound:
   fields:
     sound:

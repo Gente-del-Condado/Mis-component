@@ -21,7 +21,8 @@
           "sensor": "Assign sounds to a sensor",
           "preview": "Test a sound on the jack",
           "dlna": "DLNA: network and port",
-          "overview": "View sound assignments"
+          "overview": "View sound assignments",
+          "speech": "Configure sensor speech"
         }
       },
       "alarm": {
@@ -84,12 +85,35 @@
       },
       "overview": {
         "title": "Sound assignments",
-        "description": "Linked panel: {alarm}\n\n**Alarmo events**\n\n- Alarm triggered: {triggered}\n- Entry delay: {pending}\n- Exit delay: {arming}\n- Armed: {armed}\n- Disarmed: {disarmed}\n- Failed to arm: {failed_to_arm}\n\n**Sensors**\n\n{sensors}\n\nShows Home Assistant opening sensors and any other sensors with saved rules, not the list of sensors linked to Alarmo.\n\n— = No sound assigned. P0 = Low, P1 = Normal, P2 = High, P3 = Critical. ↻ = Repeat.\n\nEach sensor shows its playback conditions. Always mode works without Alarmo; disarmed mode and failed arming require a linked panel. Use the buttons below to view or edit an event or sensor selection.",
+        "description": "Linked panel: {alarm}\n\n**Alarmo events**\n\n- Alarm triggered: {triggered}\n- Entry delay: {pending}\n- Exit delay: {arming}\n- Armed: {armed}\n- Disarmed: {disarmed}\n- Failed to arm: {failed_to_arm}\n\n**Sensors**\n\n{sensors}\n\nShows Home Assistant opening sensors and any other sensors with saved rules, not the list of sensors linked to Alarmo.\n\n— = No sound assigned. P0 = Low, P1 = Normal, P2 = High, P3 = Critical. ↻ = Repeat.\n\nEach sensor shows its playback conditions. Always mode works without Alarmo; disarmed mode and failed arming require a linked panel. Use the buttons below to view or edit an event or sensor selection.\n\n**Speech alerts**\n\n{speech}",
         "menu_options": {
           "event": "Edit event",
           "sensor": "Edit sensor",
           "alarm": "Link Alarmo",
-          "init": "Back"
+          "init": "Back",
+          "speech": "Edit speech alerts"
+        }
+      },
+      "speech": {
+        "title": "Choose a sensor for speech",
+        "description": "Choose any Home Assistant sensor, without requiring Alarmo. Configure one speech rule per sensor; return here to edit it. A text-to-speech integration must already be configured.",
+        "data": {
+          "sensor": "Sensor"
+        }
+      },
+      "speech_rule": {
+        "title": "Speech and conditions",
+        "description": "Sensor: {sensor}. {status}\n\nSpeech is: before text + current value + optional unit + after text. Example: “The room temperature is” + 22 + “degrees Celsius” (after text, with unit disabled). No YAML or templates. Uses the engine default voice/language.\n\nTest without saving reads the current value; choose Save afterwards to keep edits. Thresholds trigger only on crossing. The minimum interval drops frequent alerts. Unavailable states, startup and reconnection are ignored. Manual mode exposes the JackSignal · Speak sensor value action for any automation.",
+        "data": {
+          "engine": "Speech engine",
+          "before": "Text before the value",
+          "after": "Text after the value",
+          "unit": "Append sensor unit",
+          "trigger": "When to speak",
+          "threshold": "Numeric threshold (above/below only)",
+          "cooldown": "Minimum interval between alerts (seconds)",
+          "priority": "Priority",
+          "operation": "Action on submit"
         }
       }
     },
@@ -98,7 +122,10 @@
       "higher_priority": "A higher-priority sound is playing.",
       "ffmpeg_unavailable": "FFmpeg could not start.",
       "dlna_address": "Check the LAN IPv4, port and FFprobe installation.",
-      "dlna_start": "Could not start DLNA. Check that the IP belongs to this host and the port is free."
+      "dlna_start": "Could not start DLNA. Check that the IP belongs to this host and the port is free.",
+      "speech_threshold": "Enter a valid numeric threshold.",
+      "speech_engine": "Choose a speech engine. If none appear, configure a TTS integration first.",
+      "speech_failed": "Could not generate or play speech. Check the sensor, TTS engine and Home Assistant internal URL."
     }
   },
   "selector": {
@@ -140,6 +167,21 @@
         "disarmed": "On closing, only while disarmed",
         "always": "On closing, always (no Alarmo required)"
       }
+    },
+    "speech_trigger": {
+      "options": {
+        "manual": "Manual / from automation",
+        "change": "Every value change",
+        "above": "Crossing above a threshold",
+        "below": "Crossing below a threshold"
+      }
+    },
+    "speech_operation": {
+      "options": {
+        "save": "Save",
+        "preview": "Test without saving",
+        "delete": "Delete rule"
+      }
     }
   },
   "services": {
@@ -156,6 +198,16 @@
           "description": "Equal or higher priorities replace the current sound."
         }
       }
+    },
+    "speak_sensor": {
+      "name": "Speak sensor value",
+      "description": "Read the current value using the phrase, engine and priority saved in JackSignal. No YAML or Alarmo required.",
+      "fields": {
+        "sensor": {
+          "name": "Sensor",
+          "description": "Sensor with a saved speech rule."
+        }
+      }
     }
   },
   "exceptions": {
@@ -170,6 +222,15 @@
     },
     "audio_unavailable": {
       "message": "Could not control the PulseAudio output volume."
+    },
+    "speech_sensor_unavailable": {
+      "message": "The sensor has no available value."
+    },
+    "speech_engine_unavailable": {
+      "message": "Configure a TTS engine in Home Assistant."
+    },
+    "speech_rule_missing": {
+      "message": "Configure speech for this sensor in JackSignal first."
     }
   }
 }

@@ -1,12 +1,13 @@
 """JackSignal integration lifecycle and automation action."""
 
-from functools import partial
 import shutil
+from functools import partial
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import selector
 
 from .alarm import AlarmSounds
 from .const import DOMAIN, PLATFORMS, Priority
@@ -14,6 +15,7 @@ from .dlna import DlnaReceiver
 from .media import error, resolve
 from .playback import Playback
 from .selectors import media_selector, priority_selector, validation
+from .speech import SensorSpeech
 
 PLAY_SOUND = "play_sound"
 
@@ -62,10 +64,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
     alarm = AlarmSounds(hass, playback, entry.options)
     alarm.start()
     entry.async_on_unload(alarm.close)
+    speech = SensorSpeech(hass, playback, entry.options)
+    speech.start()
+    entry.async_on_unload(speech.close)
+
+    async def speak_sensor(call):
+        try:
+            await speech.say(call.data["sensor"])
+        except OSError as err:
+            raise error("ffmpeg_unavailable") from err
+
+    hass.services.async_register(DOMAIN, "speak_sensor", speak_sensor, schema=validation.Schema({
+        validation.Required("sensor"): selector.EntitySelector({"domain": ["sensor", "binary_sensor"]}),
+    }))
+    entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "speak_sensor"))
 
     async def update_options(hass: HomeAssistant, updated: ConfigEntry) -> None:
         await receiver.configure(updated.options)
         await alarm.update_options(updated.options)
+        speech.update_options(updated.options)
 
     entry.async_on_unload(entry.add_update_listener(update_options))
     await alarm.restore_siren()
@@ -77,6 +94,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) 
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     hass.services.async_remove(DOMAIN, PLAY_SOUND)
+    hass.services.async_remove(DOMAIN, "speak_sensor")
     if receiver := hass.data.pop(DOMAIN, None):
         await receiver.close()
     await entry.runtime_data.close()

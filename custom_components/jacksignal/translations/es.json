@@ -21,7 +21,8 @@
           "sensor": "Asignar sonidos a un sensor",
           "preview": "Probar un sonido por el jack",
           "dlna": "DLNA: red y puerto",
-          "overview": "Ver sonidos asignados"
+          "overview": "Ver sonidos asignados",
+          "speech": "Configurar voz de un sensor"
         }
       },
       "alarm": {
@@ -84,12 +85,35 @@
       },
       "overview": {
         "title": "Sonidos asignados",
-        "description": "Panel vinculado: {alarm}\n\n**Eventos de Alarmo**\n\n- Alarma disparada: {triggered}\n- Cuenta atrás de entrada: {pending}\n- Cuenta atrás de salida: {arming}\n- Alarma armada: {armed}\n- Alarma desarmada: {disarmed}\n- Fallo al armar: {failed_to_arm}\n\n**Sensores**\n\n{sensors}\n\nSe muestran los sensores de apertura de Home Assistant y cualquier otro sensor con una regla guardada; no es la lista de sensores vinculados a Alarmo.\n\n— = Sin sonido asignado. P0 = Baja, P1 = Normal, P2 = Alta, P3 = Crítica. ↻ = Repetición.\n\nCada sensor muestra sus condiciones de reproducción. El modo «siempre» funciona sin Alarmo; el modo «desarmada» y el fallo al armar requieren un panel vinculado. Para ver o cambiar una selección, elige el evento o sensor en los botones siguientes.",
+        "description": "Panel vinculado: {alarm}\n\n**Eventos de Alarmo**\n\n- Alarma disparada: {triggered}\n- Cuenta atrás de entrada: {pending}\n- Cuenta atrás de salida: {arming}\n- Alarma armada: {armed}\n- Alarma desarmada: {disarmed}\n- Fallo al armar: {failed_to_arm}\n\n**Sensores**\n\n{sensors}\n\nSe muestran los sensores de apertura de Home Assistant y cualquier otro sensor con una regla guardada; no es la lista de sensores vinculados a Alarmo.\n\n— = Sin sonido asignado. P0 = Baja, P1 = Normal, P2 = Alta, P3 = Crítica. ↻ = Repetición.\n\nCada sensor muestra sus condiciones de reproducción. El modo «siempre» funciona sin Alarmo; el modo «desarmada» y el fallo al armar requieren un panel vinculado. Para ver o cambiar una selección, elige el evento o sensor en los botones siguientes.\n\n**Avisos de voz**\n\n{speech}",
         "menu_options": {
           "event": "Editar evento",
           "sensor": "Editar sensor",
           "alarm": "Vincular Alarmo",
-          "init": "Volver"
+          "init": "Volver",
+          "speech": "Editar avisos de voz"
+        }
+      },
+      "speech": {
+        "title": "Elegir sensor para voz",
+        "description": "Elige un sensor de Home Assistant, sin necesidad de Alarmo. Puedes crear una regla de voz por sensor y volver aquí para editarla. Necesitas una integración de texto a voz configurada previamente.",
+        "data": {
+          "sensor": "Sensor"
+        }
+      },
+      "speech_rule": {
+        "title": "Voz y condiciones",
+        "description": "Sensor: {sensor}. {status}\n\nLa frase será: texto anterior + valor actual + unidad (opcional) + texto posterior. Ejemplo: «La temperatura del salón es» + 22 + «grados Celsius» (en texto posterior y sin añadir unidad). No escribas YAML ni plantillas. Se usa la voz/idioma predeterminados del motor.\n\n«Probar sin guardar» lee el valor actual; después elige Guardar para conservar los cambios. Los umbrales avisan solo al cruzarlos, no continuamente. El intervalo mínimo descarta avisos demasiado seguidos. Se ignoran valores no disponibles, el inicio y las reconexiones. «Solo manual» permite usar la acción JackSignal · Decir valor del sensor desde cualquier automatización.",
+        "data": {
+          "engine": "Motor de voz",
+          "before": "Texto antes del valor",
+          "after": "Texto después del valor",
+          "unit": "Añadir la unidad del sensor",
+          "trigger": "Cuándo hablar",
+          "threshold": "Umbral numérico (solo superar/bajar)",
+          "cooldown": "Intervalo mínimo entre avisos (segundos)",
+          "priority": "Prioridad",
+          "operation": "Qué hacer al enviar"
         }
       }
     },
@@ -98,7 +122,10 @@
       "higher_priority": "Está sonando un aviso de mayor prioridad.",
       "ffmpeg_unavailable": "No se pudo iniciar FFmpeg.",
       "dlna_address": "Comprueba la IPv4 local, el puerto y que FFprobe esté instalado.",
-      "dlna_start": "No se pudo iniciar DLNA. Comprueba que la IP pertenece a este equipo y que el puerto está libre."
+      "dlna_start": "No se pudo iniciar DLNA. Comprueba que la IP pertenece a este equipo y que el puerto está libre.",
+      "speech_threshold": "Indica un umbral numérico válido.",
+      "speech_engine": "Elige un motor de voz. Si no aparece ninguno, configura antes una integración TTS en Home Assistant.",
+      "speech_failed": "No se pudo generar o reproducir la voz. Comprueba el sensor, el motor TTS y la URL interna de Home Assistant."
     }
   },
   "selector": {
@@ -140,6 +167,21 @@
         "disarmed": "Al cerrar, solo con alarma desarmada",
         "always": "Al cerrar, siempre (sin requerir Alarmo)"
       }
+    },
+    "speech_trigger": {
+      "options": {
+        "manual": "Solo manual / desde automatización",
+        "change": "Cada cambio de valor",
+        "above": "Al superar un umbral",
+        "below": "Al bajar de un umbral"
+      }
+    },
+    "speech_operation": {
+      "options": {
+        "save": "Guardar",
+        "preview": "Probar sin guardar",
+        "delete": "Eliminar regla"
+      }
     }
   },
   "services": {
@@ -156,6 +198,16 @@
           "description": "Una prioridad igual o superior reemplaza el sonido actual."
         }
       }
+    },
+    "speak_sensor": {
+      "name": "Decir valor del sensor",
+      "description": "Lee el valor actual con la frase, motor y prioridad guardados en JackSignal. No requiere YAML ni Alarmo.",
+      "fields": {
+        "sensor": {
+          "name": "Sensor",
+          "description": "Sensor con una regla de voz guardada."
+        }
+      }
     }
   },
   "exceptions": {
@@ -170,6 +222,15 @@
     },
     "audio_unavailable": {
       "message": "No se pudo controlar el volumen de la salida PulseAudio."
+    },
+    "speech_sensor_unavailable": {
+      "message": "El sensor no tiene un valor disponible."
+    },
+    "speech_engine_unavailable": {
+      "message": "Configura un motor TTS en Home Assistant."
+    },
+    "speech_rule_missing": {
+      "message": "Configura primero la voz para este sensor en JackSignal."
     }
   }
 }

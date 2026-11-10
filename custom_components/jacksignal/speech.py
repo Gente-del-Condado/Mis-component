@@ -1,0 +1,124 @@
+"""Configured sensor speech using Home Assistant TTS and JackSignal priorities."""
+
+import asyncio
+import logging
+import math
+import time
+
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_state_change_event
+
+from .const import Priority
+from .media import error, resolve
+
+SPEECH_RULES = "speech_rules"
+_LOGGER = logging.getLogger(__name__)
+INVALID = {"unknown", "unavailable", ""}
+
+
+def message_for(state, rule):
+    """Use ordinary text fields, never execute user-supplied templates."""
+    if state is None or state.state in INVALID:
+        raise error("speech_sensor_unavailable")
+    unit = state.attributes.get("unit_of_measurement", "") if rule.get("unit", True) else ""
+    return " ".join(str(part).strip() for part in (
+        rule.get("before", ""), state.state, unit, rule.get("after", ""),
+    ) if part and str(part).strip())
+
+
+def matches(old, new, rule):
+    if old is None or new is None or old.state in INVALID or new.state in INVALID:
+        return False
+    if old.state == new.state:
+        return False
+    trigger = rule.get("trigger", "manual")
+    if trigger == "change":
+        return True
+    if trigger not in {"above", "below"}:
+        return False
+    try:
+        previous, current, threshold = float(old.state), float(new.state), float(rule["threshold"])
+    except (ValueError, TypeError, KeyError):
+        return False
+    if not all(math.isfinite(value) for value in (previous, current, threshold)):
+        return False
+    return previous <= threshold < current if trigger == "above" else previous >= threshold > current
+
+
+async def audio_for(hass, state, rule):
+    from homeassistant.components.tts import generate_media_source_id
+
+    if not hass.services.has_service("tts", "speak"):
+        raise error("speech_engine_unavailable")
+    media_id = generate_media_source_id(
+        hass, message_for(state, rule), engine=rule["engine"], cache=False,
+    )
+    return await resolve(hass, media_id, None)
+
+
+async def preview(hass, playback, sensor, rule):
+    sound = await audio_for(hass, hass.states.get(sensor), rule)
+    return await playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+
+
+class SensorSpeech:
+    def __init__(self, hass, playback, options):
+        self.hass, self.playback = hass, playback
+        self.rules = options.get(SPEECH_RULES, {})
+        self._unsubscribe = None
+        self._generation = 0
+        self._closed = False
+        self._last = {}
+        self._lock = asyncio.Lock()
+
+    def start(self):
+        self._closed = False
+        sensors = [sensor for sensor, rule in self.rules.items() if rule.get("trigger", "manual") != "manual"]
+        if sensors:
+            self._unsubscribe = async_track_state_change_event(self.hass, sensors, self._changed)
+
+    def close(self):
+        self._closed = True
+        self._generation += 1
+        if self._unsubscribe:
+            self._unsubscribe()
+            self._unsubscribe = None
+
+    def update_options(self, options):
+        self.close()
+        self.rules = options.get(SPEECH_RULES, {})
+        self._last.clear()
+        self.start()
+
+    async def say(self, sensor):
+        rule = self.rules.get(sensor)
+        if self._closed or rule is None:
+            raise error("speech_rule_missing")
+        generation = self._generation
+        state = self.hass.states.get(sensor)
+        sound = await audio_for(self.hass, state, rule)
+        if generation != self._generation:
+            return False
+        return await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+
+    async def _changed(self, event):
+        sensor = event.data["entity_id"]
+        new = event.data.get("new_state")
+        async with self._lock:
+            rule = self.rules.get(sensor)
+            if self._closed or not rule or not matches(event.data.get("old_state"), new, rule):
+                return
+            if self.hass.states.get(sensor) != new:
+                return
+            now = time.monotonic()
+            if now - self._last.get(sensor, -math.inf) < rule.get("cooldown", 60):
+                return
+            self._last[sensor] = now
+            generation = self._generation
+            try:
+                sound = await audio_for(self.hass, new, rule)
+                if generation != self._generation or self.hass.states.get(sensor) != new:
+                    return
+                await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+            except (HomeAssistantError, OSError, ValueError) as err:
+                _LOGGER.warning("Sensor speech failed for %s (%s)", sensor, type(err).__name__)

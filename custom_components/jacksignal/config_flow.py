@@ -1,5 +1,6 @@
 """Native settings panel for Alarmo and sound assignments."""
 
+import math
 import re
 from urllib.parse import unquote
 
@@ -23,6 +24,7 @@ from .const import (
 from .dlna import DLNA, settings
 from .media import resolve
 from .selectors import media_selector, priority_selector, validation
+from .speech import SPEECH_RULES, preview
 
 
 class SonidosConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -48,8 +50,68 @@ class SoundOptions(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
-            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "preview", "dlna"],
+            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "speech", "preview", "dlna"],
         )
+
+    async def async_step_speech(self, user_input=None):
+        if user_input is not None:
+            self._key = user_input["sensor"]
+            return await self.async_step_speech_rule()
+        return self.async_show_form(step_id="speech", data_schema=validation.Schema({
+            validation.Required("sensor"): selector.EntitySelector({"domain": ["sensor", "binary_sensor"]}),
+        }))
+
+    async def async_step_speech_rule(self, user_input=None):
+        options = dict(self.config_entry.options)
+        rules = dict(options.get(SPEECH_RULES, {}))
+        current = rules.get(self._key, {})
+        errors, status = {}, ""
+        if user_input is not None:
+            rule = {key: value for key, value in user_input.items() if key != "operation"}
+            operation = user_input.get("operation", "save")
+            if operation == "delete":
+                rules.pop(self._key, None)
+            else:
+                if rule.get("trigger") in {"above", "below"} and (
+                    rule.get("threshold") is None or not math.isfinite(float(rule["threshold"]))
+                ):
+                    errors["threshold"] = "speech_threshold"
+                if not rule.get("engine"):
+                    errors["engine"] = "speech_engine"
+                if operation == "preview" and not errors:
+                    try:
+                        accepted = await preview(self.hass, self.config_entry.runtime_data, self._key, rule)
+                        if not accepted:
+                            errors["base"] = "higher_priority"
+                        else:
+                            status = "✓"
+                    except (HomeAssistantError, OSError, ValueError):
+                        errors["base"] = "speech_failed"
+                if not errors and operation == "save":
+                    rules[self._key] = rule
+            if not errors and operation in {"save", "delete"}:
+                options[SPEECH_RULES] = rules
+                return self.async_create_entry(data=options)
+        schema = validation.Schema({
+            validation.Optional("engine"): selector.EntitySelector({"domain": "tts"}),
+            validation.Optional("before", default=""): selector.TextSelector(),
+            validation.Optional("after", default=""): selector.TextSelector(),
+            validation.Required("unit", default=True): selector.BooleanSelector(),
+            validation.Required("trigger", default="manual"): selector.SelectSelector({
+                "options": ["manual", "change", "above", "below"], "translation_key": "speech_trigger",
+                "mode": selector.SelectSelectorMode.DROPDOWN,
+            }),
+            validation.Optional("threshold"): selector.NumberSelector({"mode": "box", "step": "any"}),
+            validation.Required("cooldown", default=60): selector.NumberSelector({"min": 0, "max": 86400, "step": 1, "mode": "box"}),
+            validation.Required("priority", default="low"): priority_selector(),
+            validation.Required("operation", default="save"): selector.SelectSelector({
+                "options": ["save", "preview", "delete"], "translation_key": "speech_operation",
+                "mode": selector.SelectSelectorMode.DROPDOWN,
+            }),
+        })
+        return self.async_show_form(step_id="speech_rule", data_schema=self.add_suggested_values_to_schema(
+            schema, user_input if user_input is not None else current,
+        ), errors=errors, description_placeholders={"sensor": self._key, "status": status})
 
     async def async_step_overview(self, user_input=None):
         """Show saved assignments without changing them or playing any audio."""
@@ -103,8 +165,14 @@ class SoundOptions(OptionsFlow):
                 close_audio = sound({**rule, "sound": rule["close_sound"]})
                 lines.append(f"  - {plain(close_label)}: {close_audio} · {plain(close_mode)}")
         values["sensors"] = "\n".join(lines) or "—"
+        values["speech"] = "\n".join(
+            f"- {plain(sensor)}: {plain(rule.get('before', ''))} … {plain(rule.get('after', ''))}"
+            f" · {plain(rule['engine'])} · P{Priority[rule['priority'].upper()].value}"
+            f" · {plain(translated('speech_trigger', rule.get('trigger', 'manual')))}"
+            for sensor, rule in sorted(options.get(SPEECH_RULES, {}).items())
+        ) or "—"
         return self.async_show_menu(
-            step_id="overview", menu_options=["event", "sensor", "alarm", "init"],
+            step_id="overview", menu_options=["event", "sensor", "speech", "alarm", "init"],
             description_placeholders=values,
         )
 
