@@ -1,0 +1,63 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "host": "Gateway URL",
+          "token": "Read-only API token",
+          "verify_ssl": "Verify TLS certificate"
+        }
+      },
+      "reconfigure": {
+        "data": {
+          "host": "Gateway URL",
+          "token": "Read-only API token",
+          "verify_ssl": "Verify TLS certificate"
+        }
+      },
+      "reauth_confirm": {
+        "data": {
+          "host": "Gateway URL",
+          "token": "Read-only API token",
+          "verify_ssl": "Verify TLS certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the Gateway",
+      "invalid_auth": "Token invalid or missing read permission"
+    },
+    "abort": {
+      "already_configured": "Already configured",
+      "reauth_successful": "Credentials updated",
+      "reconfigure_successful": "Configuration updated"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "vpn_connected": {
+        "name": "VPN connection"
+      },
+      "lan_https_active": {
+        "name": "LAN HTTPS"
+      },
+      "setup_required": {
+        "name": "Setup required"
+      }
+    },
+    "sensor": {
+      "services_active": {
+        "name": "Active services"
+      },
+      "uptime_seconds": {
+        "name": "Uptime"
+      },
+      "certificate_source": {
+        "name": "Certificate source"
+      },
+      "domain": {
+        "name": "Domain"
+      }
+    }
+  }
+}

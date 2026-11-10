@@ -1,0 +1,14 @@
+{
+  "domain": "headscale_gateway",
+  "name": "Headscale Gateway",
+  "codeowners": [
+    "@gentedelcondado"
+  ],
+  "config_flow": true,
+  "documentation": "https://gentedelcondado.es/forgejo/wolfbelmi88/headscale-gateway/src/branch/main/packaging/hacs/README.md",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://gentedelcondado.es/forgejo/wolfbelmi88/headscale-gateway/issues",
+  "requirements": [],
+  "version": "1.4.5"
+}

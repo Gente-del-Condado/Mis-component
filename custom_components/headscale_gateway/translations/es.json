@@ -1,0 +1,63 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "host": "URL del Gateway",
+          "token": "Token API de lectura",
+          "verify_ssl": "Verificar certificado TLS"
+        }
+      },
+      "reconfigure": {
+        "data": {
+          "host": "URL del Gateway",
+          "token": "Token API de lectura",
+          "verify_ssl": "Verificar certificado TLS"
+        }
+      },
+      "reauth_confirm": {
+        "data": {
+          "host": "URL del Gateway",
+          "token": "Token API de lectura",
+          "verify_ssl": "Verificar certificado TLS"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede conectar al Gateway",
+      "invalid_auth": "Token inválido o sin permiso de lectura"
+    },
+    "abort": {
+      "already_configured": "Ya está configurado",
+      "reauth_successful": "Credenciales actualizadas",
+      "reconfigure_successful": "Configuración actualizada"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "vpn_connected": {
+        "name": "Conexión VPN"
+      },
+      "lan_https_active": {
+        "name": "HTTPS LAN"
+      },
+      "setup_required": {
+        "name": "Configuración pendiente"
+      }
+    },
+    "sensor": {
+      "services_active": {
+        "name": "Servicios activos"
+      },
+      "uptime_seconds": {
+        "name": "Tiempo activo"
+      },
+      "certificate_source": {
+        "name": "Origen del certificado"
+      },
+      "domain": {
+        "name": "Dominio"
+      }
+    }
+  }
+}
