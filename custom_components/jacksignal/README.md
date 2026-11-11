@@ -57,6 +57,9 @@ Desde la versión **0.10.0**, abre **JackSignal** en la barra lateral de Home As
 - **Editar / Configurar:** modifica el aviso directamente. Apertura y cierre tienen bloques separados y cada condición activa requiere su propio sonido. Los estados técnicos del sensor quedan en **Opciones avanzadas**. Los cambios solo se aplican al guardar.
 - **Activar / Desactivar:** conserva archivos, condiciones, prioridad y texto de voz. Las reglas existentes siguen activadas por defecto. Un aviso de voz desactivado tampoco se ejecuta desde su acción de automatización. Desactivar la regla de sirena disparada detiene su sirena; reactivarla con el panel todavía disparado puede restaurar la repetición configurada. Para otros avisos, desactivar evita nuevos disparos, sin cancelar un clip que ya haya comenzado.
 - **Probar apertura / Probar cierre / Probar / Escuchar:** usa la configuración guardada, siempre con prioridad baja **P0**, sin repetición. No cambia el estado de Alarmo ni de los sensores y no activa una regla desactivada. Un aviso de prioridad superior o una sirena protegida bloquean la prueba. **Detener prueba** solo detiene el audio iniciado desde este panel.
+- **Vista compacta y resumen:** contadores globales de activados, desactivados y sin configurar. El estado de reproducción se consulta cada cinco segundos mientras la página está visible. Los estados de sensores se renuevan con Actualizar.
+- **Selección múltiple:** marca hasta 200 avisos configurados de la sección actual y cambia activación o prioridad. Revisa la lista antes de guardar: los cambios se validan y aplican juntos. Cambiar sección, búsqueda o filtro limpia la selección.
+- **Copiar a…:** reutiliza un aviso de sensor o voz en otro sensor de la misma sección. Revisa la copia antes de guardar; reemplaza el aviso del destino, comienza desactivada y conserva la polaridad del sensor de destino.
 - **Actualizar:** vuelve a leer las reglas y los estados actuales. Si otra pantalla ha cambiado la configuración, se rechaza el guardado obsoleto para evitar sobrescribirla: cierra el editor, actualiza y vuelve a editar.
 
 Los sonidos se seleccionan de los directorios de **Mis medios**; para subir un archivo usa **Configuración y audio → Enviar audio** o Multimedia. La lista del editor está limitada a 2000 archivos y 2000 carpetas; si se alcanza el límite, se muestra un aviso y se conservan las selecciones anteriores. El formulario tradicional sigue disponible para bibliotecas mayores. El resumen de asignaciones en texto también se conserva como alternativa.
@@ -76,6 +79,21 @@ Los sensores binarios con condición **siempre** funcionan sin Alarmo. **Solo de
 
 Desactiva las acciones antiguas que ejecuten FFmpeg directamente cuando hayas comprobado las reglas nuevas: el audio externo a JackSignal no participa en sus prioridades.
 
+## Voz local y español
+
+Solo aparecen motores TTS configurados en Home Assistant; JackSignal no instala motores por su cuenta. Para una Raspberry Pi 4 recomendamos **Piper** con una voz española de calidad `medium` o inferior:
+
+1. En **Ajustes → Aplicaciones → Instalar aplicación**, instala **Piper**.
+2. Selecciona una voz española en su configuración e inicia la aplicación. Si tu versión ofrece varios motores, usa el backend `piper`.
+3. En **Ajustes → Dispositivos y servicios**, añade la integración **Wyoming** descubierta para Piper.
+4. Abre el panel **JackSignal**, pulsa **Actualizar**, entra en **Voz** y edita el aviso. Selecciona Piper, el idioma español que anuncie y su voz; escucha la prueba y guarda.
+
+Piper genera voz localmente una vez descargado el modelo. También puedes ejecutarlo en otro ordenador de tu red y conectarlo mediante Wyoming. No necesitas micrófono ni un motor de reconocimiento de voz para leer sensores.
+
+Si Google Translate habla en inglés, selecciona **es** en el idioma del aviso. El idioma de la interfaz de Home Assistant no fija el idioma de síntesis. Google Translate necesita Internet; Piper permite mantener la síntesis en casa. El panel muestra los idiomas y voces que cada motor anuncia, no una lista fija. Si no aparecen voces españolas en Piper, configura/instala una en la aplicación y recarga Wyoming. Algunos motores locales requieren una voz explícita: al elegir idioma se propone la primera voz compatible.
+
+Consulta la [documentación oficial de Piper](https://github.com/home-assistant/apps/blob/master/piper/DOCS.md) y [Google Translate TTS](https://www.home-assistant.io/integrations/google_translate/).
+
 ## Texto a voz sin YAML
 
 En **Configurar → Configurar voz de un sensor**:
@@ -85,7 +103,7 @@ En **Configurar → Configurar voz de un sensor**:
 3. Elige prioridad y disparador: manual, cambio de valor, superar un umbral o bajar de un umbral.
 4. Usa **Probar sin guardar** y después **Guardar**. Vuelve a elegir el sensor para editar o eliminar su regla.
 
-Se guarda una regla por sensor. El motor usa su voz e idioma predeterminados. Los textos son literales, sin plantillas YAML/Jinja. Los sensores binarios leen `on`/`off`; para avisos distintos al abrir y cerrar utiliza las reglas de sonido.
+Se guarda una regla por sensor. En **JackSignal → Voz → Editar**, elige el motor, el idioma y una voz compatible; puedes ver la frase con el valor actual y **Escuchar antes de guardar (P0)**. Las reglas antiguas conservan el idioma predeterminado del motor hasta que lo cambies. El formulario nativo conserva la selección del panel mientras no cambies de motor. Los textos son literales, sin plantillas YAML/Jinja. Los sensores binarios leen `on`/`off`; para avisos distintos al abrir y cerrar utiliza las reglas de sonido.
 
 Los umbrales actúan al cruzarlos. El intervalo mínimo entre avisos automáticos es de 60 segundos por defecto: descarta avisos próximos, no los pone en espera. No anuncia valores desconocidos/no disponibles ni cambios de recuperación al arrancar.
 

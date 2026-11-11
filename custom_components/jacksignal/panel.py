@@ -39,7 +39,7 @@ def rule_defaults(hass, kind, key):
 
 
 def selected_rule(hass, entry, kind, key):
-    if kind not in SECTIONS:
+    if not isinstance(kind, str) or not isinstance(key, str) or kind not in SECTIONS:
         raise ValueError("Tipo de aviso no válido.")
     existing = entry.options.get(SECTIONS[kind], {}).get(key)
     if kind == "alarm":
@@ -57,6 +57,32 @@ def selected_rule(hass, entry, kind, key):
     return result
 
 
+def voice_info(hass, engine, language=None):
+    from homeassistant.components.tts import get_engine_instance
+
+    try:
+        provider = get_engine_instance(hass, engine)
+    except KeyError:
+        provider = None
+    if provider is None:
+        raise ValueError("El motor de voz no está disponible. Configúralo en Home Assistant y actualiza la lista.")
+    languages = list(provider.supported_languages or [])
+    language = language or provider.default_language
+    if language not in languages:
+        raise ValueError("El motor no admite ese idioma. Selecciona uno de la lista.")
+    voices = provider.async_get_supported_voices(language) or []
+    return {"languages": languages, "default_language": provider.default_language,
+            "language": language, "voices": [{"value": v.voice_id, "label": v.name} for v in voices]}
+
+
+def playback_status(entry):
+    player = entry.runtime_data
+    sound = getattr(player, "sound", None)
+    return {"active": sound is not None, "paused": bool(getattr(player, "paused", False)),
+            "priority": getattr(player, "priority", Priority.LOW).name.lower(),
+            "source": "Prueba del panel" if getattr(player, "owner", None) == "panel_preview" else "Aviso o reproducción externa"}
+
+
 def snapshot(hass, entry):
     rows = []
     for kind, section in SECTIONS.items():
@@ -72,11 +98,11 @@ def snapshot(hass, entry):
             configured = bool(rule.get("engine") if kind == "speech" else rule.get("sound") or rule.get("close_sound"))
             enabled = rule.get("enabled", True)
             rows.append({"kind": kind, "key": key, "name": EVENT_NAMES[key] if kind == "alarm" else state.name if state else key,
-                         "state": state.state if state else None, "configured": configured,
+                         "state": state.state if state else None, "unit": state.attributes.get("unit_of_measurement", "") if state else "", "configured": configured,
                          "status": "unconfigured" if not configured else "configured" if enabled else "disabled",
                          "rule": rule})
     panel = entry.options.get(ALARM)
-    return {"revision": revision(entry.options), "rows": rows, "alarm": panel,
+    return {"revision": revision(entry.options), "rows": rows, "playback": playback_status(entry), "alarm": panel,
             "alarm_available": bool(panel and hass.states.get(panel) and hass.states.get(panel).state not in {"unavailable", "unknown"}),
             "engines": [{"value": s.entity_id, "label": s.name} for s in hass.states.async_all("tts")]}
 
@@ -108,7 +134,7 @@ async def validate_rule(hass, kind, key, supplied):
         raise ValueError("La configuración no es válida.")
     allowed = {"enabled", "priority"} | ({"sound", "repeat"} if kind == "alarm" else
         {"sound", "close_sound", "open_state", "closed_state", "on_open", "on_close", "failed_to_arm"} if kind == "sensor" else
-        {"engine", "before", "after", "unit", "trigger", "threshold", "cooldown"})
+        {"engine", "language", "voice", "before", "after", "unit", "trigger", "threshold", "cooldown"})
     if supplied.keys() - allowed:
         raise ValueError("Hay campos de configuración no reconocidos.")
     rule = {**rule_defaults(hass, kind, key), **deepcopy(supplied)}
@@ -121,6 +147,15 @@ async def validate_rule(hass, kind, key, supplied):
         engine = rule.get("engine")
         if not isinstance(engine, str) or not engine.startswith("tts."):
             raise ValueError("Selecciona un motor de voz configurado en Home Assistant.")
+        for field in ("language", "voice"):
+            if field in rule and (not isinstance(rule[field], str) or len(rule[field]) > 200):
+                raise ValueError("El idioma o la voz no son válidos.")
+            if not rule.get(field):
+                rule.pop(field, None)
+        if rule.get("language") or rule.get("voice"):
+            info = voice_info(hass, engine, rule.get("language"))
+            if rule.get("voice") and rule["voice"] not in {v["value"] for v in info["voices"]}:
+                raise ValueError("La voz no está disponible para ese idioma.")
         for field in ("before", "after"):
             if not isinstance(rule[field], str) or len(rule[field]) > 1000:
                 raise ValueError("El texto de voz admite hasta 1000 caracteres por campo.")
@@ -163,6 +198,32 @@ async def validate_rule(hass, kind, key, supplied):
 async def handle(hass, entry, msg):
     """Shared action implementation; the websocket boundary requires an admin."""
     action = msg["action"]
+    if action == "tts_info":
+        return voice_info(hass, msg.get("engine", ""), msg.get("language"))
+    if action == "status":
+        return playback_status(entry)
+    if action == "batch":
+        if msg.get("revision") != revision(entry.options):
+            raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")
+        targets, changes = msg.get("targets"), msg.get("changes")
+        if not isinstance(targets, list) or not 1 <= len(targets) <= 200:
+            raise ValueError("Selecciona entre 1 y 200 avisos.")
+        if not isinstance(changes, dict) or not changes or changes.keys() - {"enabled", "priority"}:
+            raise ValueError("Solo puedes cambiar activación y prioridad en bloque.")
+        options = deepcopy(dict(entry.options))
+        for target in targets:
+            if not isinstance(target, dict):
+                raise ValueError("Selección de avisos no válida.")
+            kind, key = target.get("kind"), target.get("key")
+            rule = selected_rule(hass, entry, kind, key)
+            if key not in entry.options.get(SECTIONS[kind], {}):
+                raise ValueError("Configura todos los avisos seleccionados antes de modificarlos en bloque.")
+            rule = await validate_rule(hass, kind, key, {**rule, **changes})
+            options[SECTIONS[kind]][key] = rule
+        if msg.get("revision") != revision(entry.options):
+            raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")
+        hass.config_entries.async_update_entry(entry, options=options)
+        return {**snapshot(hass, entry), "message": f"Actualizados {len(targets)} avisos."}
     if action == "list":
         return snapshot(hass, entry)
     if action == "media":
@@ -173,6 +234,8 @@ async def handle(hass, entry, msg):
     kind, key = msg.get("kind"), msg.get("key")
     rule = selected_rule(hass, entry, kind, key)
     if action == "test":
+        if "rule" in msg:
+            rule = await validate_rule(hass, kind, key, msg["rule"])
         if kind == "speech":
             sound = await audio_for(hass, hass.states.get(key), rule)
         else:
@@ -208,7 +271,9 @@ async def handle(hass, entry, msg):
 
 @websocket_api.websocket_command({vol.Required("type"): "jacksignal/manage", vol.Required("action"): str,
     vol.Optional("kind"): str, vol.Optional("key"): str, vol.Optional("revision"): str,
-    vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str})
+    vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str,
+    vol.Optional("engine"): str, vol.Optional("language"): str,
+    vol.Optional("targets"): [dict], vol.Optional("changes"): dict})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_manage(hass, connection, msg):

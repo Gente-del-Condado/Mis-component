@@ -52,6 +52,8 @@ async def audio_for(hass, state, rule):
         raise error("speech_engine_unavailable")
     media_id = generate_media_source_id(
         hass, message_for(state, rule), engine=rule["engine"], cache=False,
+        language=rule.get("language") or None,
+        options={"voice": rule["voice"]} if rule.get("voice") else None,
     )
     return await resolve(hass, media_id, None)
 

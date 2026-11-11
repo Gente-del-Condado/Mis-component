@@ -150,6 +150,10 @@ class SoundOptions(OptionsFlow):
         if user_input is not None:
             rule = {key: value for key, value in user_input.items() if key != "operation"}
             rule.setdefault("enabled", current.get("enabled", True))
+            if rule.get("engine") == current.get("engine"):
+                for field in ("language", "voice"):
+                    if current.get(field):
+                        rule[field] = current[field]
             operation = user_input.get("operation", "save")
             if operation == "delete":
                 rules.pop(self._key, None)
