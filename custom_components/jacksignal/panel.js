@@ -435,7 +435,25 @@ class JackSignalPanel extends HTMLElement {
       if (focus) item.raw.focus();
     };
     add.addEventListener('click',() => append('','',true)); group.append(add); root.append(group);
-    for (const [raw,spoken] of Object.entries(rule.state_labels || {})) append(raw,spoken);
+    const suggestions = row.suggested_state_labels || {};
+    const proposed = !Object.hasOwn(rule,'state_labels') && Object.keys(suggestions).length > 0;
+    const help = node('p',proposed
+      ? 'Propuesta automática según el tipo de sensor. Revisa las palabras, cámbialas o elimina las equivalencias que no quieras. Solo se aplicarán al guardar.'
+      : Object.keys(suggestions).length
+        ? 'Se conservan tus equivalencias, incluso si las dejaste vacías. Puedes añadir las sugerencias que falten sin reemplazar tus textos.'
+        : 'No hay una propuesta automática para este tipo de sensor. Puedes añadir tus equivalencias manualmente.',{class:'tip'});
+    group.insertBefore(help,list);
+    for (const [raw,spoken] of Object.entries(proposed ? suggestions : rule.state_labels || {})) append(raw,spoken);
+    if (Object.keys(suggestions).length) {
+      const suggest = node('button','Añadir sugerencias que faltan',{type:'button'});
+      suggest.addEventListener('click',() => {
+        for (const [raw,spoken] of Object.entries(suggestions)) {
+          if (!this.stateLabelRows.some(item => item.raw.value === raw)) append(raw,spoken);
+        }
+        validate();updatePhrase();
+      });
+      group.append(suggest);
+    }
   }
   collectRule() {
     const rule = {...this.editing.rule};

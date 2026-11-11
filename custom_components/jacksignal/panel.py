@@ -15,7 +15,7 @@ from .alarm import CLOSED_STATES
 from .const import ALARM, DEFAULT_PRIORITIES, DOMAIN, EVENTS, LOCAL_PREFIX, RULES, SENSOR_RULES, Priority
 from .media import AUDIO_EXTENSIONS, resolve
 from .selectors import validation as vol
-from .speech import (SPEECH_RULES, SPEECH_DEFAULTS, VOICE_FIELDS, audio_for, preferred_language, voice_settings, general_voice, effective_rule, piper_engines)
+from .speech import (SPEECH_RULES, SPEECH_DEFAULTS, VOICE_FIELDS, audio_for, preferred_language, voice_settings, general_voice, effective_rule, piper_engines, suggested_state_labels)
 from .playback import validate_speed
 
 PANEL = "jacksignal"
@@ -103,6 +103,7 @@ def snapshot(hass, entry):
             rows.append({"kind": kind, "key": key, "name": EVENT_NAMES[key] if kind == "alarm" else state.name if state else key,
                          "state": state.state if state else None, "unit": state.attributes.get("unit_of_measurement", "") if state else "", "configured": configured,
                          "status": "unconfigured" if not configured else "configured" if enabled else "disabled",
+                         "suggested_state_labels": suggested_state_labels(state) if kind == "speech" else {},
                          "rule": rule, "effective": effective_rule(hass, rule, entry.options) if kind == "speech" else rule})
     panel = entry.options.get(ALARM)
     return {"revision": revision(entry.options), "rows": rows, "playback": playback_status(entry), "alarm": panel,

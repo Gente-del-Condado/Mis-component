@@ -46,6 +46,32 @@ def effective_rule(hass, rule, options):
     return {**rule, **general_voice(hass, options)}
 
 
+def suggested_state_labels(state):
+    """Offer editable wording using HA binary sensor semantics, never entity names."""
+    if state is None or state.domain != "binary_sensor":
+        return {}
+    device_class = state.attributes.get("device_class")
+    words = {
+        "window": ("abierta", "cerrada"),
+        "door": ("abierta", "cerrada"),
+        "garage_door": ("abierta", "cerrada"),
+        "opening": ("abierto", "cerrado"),
+        "power": ("encendido", "apagado"),
+        "running": ("en marcha", "detenido"),
+        "light": ("luz detectada", "sin luz"),
+        "motion": ("movimiento detectado", "sin movimiento"),
+        "occupancy": ("ocupado", "libre"),
+        "connectivity": ("conectado", "desconectado"),
+        "plug": ("enchufado", "desenchufado"),
+        "lock": ("desbloqueado", "bloqueado"),
+        None: ("encendido", "apagado"),
+        "": ("encendido", "apagado"),
+    }.get(device_class)
+    if words is None:
+        return {}
+    return dict(zip(("on", "off"), words))
+
+
 def message_for(state, rule):
     """Use ordinary text fields, never execute user-supplied templates."""
     if state is None or state.state in INVALID:
