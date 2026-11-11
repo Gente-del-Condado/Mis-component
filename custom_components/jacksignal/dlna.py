@@ -221,7 +221,7 @@ class DlnaReceiver:
                 friendly_name="JackSignal Audio",
                 manufacturer="JackSignal",
                 manufacturer_url=None,
-                model_description="Audio-only receiver with Alarmo priorities",
+                model_description="Receptor exclusivo de audio con prioridades de Alarmo",
                 model_name="JackSignal",
                 model_number=manifest["version"],
                 model_url=manifest["documentation"],
