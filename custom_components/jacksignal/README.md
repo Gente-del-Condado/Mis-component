@@ -121,6 +121,16 @@ El emisor debe servir el archivo mediante una URL HTTP(S) accesible desde la Ras
 
 **No es un receptor Google Cast, AirPlay ni Spotify Connect.** El botón Chromecast de VLC utiliza otro protocolo. DLNA no lleva autenticación: úsalo en redes de confianza y no lo publiques directamente en Internet.
 
+## Enviar audio y consultar el diagnóstico
+
+En **JackSignal → Configurar → Enviar audio** puedes subir un archivo desde el móvil/PC, pegar una URL HTTP(S) directa de audio o elegir un archivo de Mis medios. No necesitas activar DLNA para estos envíos: utilizan tu acceso autenticado a Home Assistant y también sirven a través de una VPN que permita acceder a Home Assistant. Una URL debe ser accesible desde Home Assistant, no solo desde el móvil.
+
+Los archivos se comprueban con FFprobe: se rechazan vídeos, archivos vacíos y contenido no reconocido como audio; se permiten portadas de álbum. Las subidas admiten hasta 100 MB y los audios válidos quedan en **Mis medios → jacksignal** con un nombre único, sin sobrescribir otros sonidos. Puedes reutilizarlos o borrarlos desde Mis medios. Se conservan incluso si una alarma impide reproducirlos. Las URLs no se guardan en la configuración. Una página de Spotify o YouTube no es una URL directa de audio.
+
+Todo envío directo tiene prioridad **P0 (baja)** y pasa por el mismo reproductor. Alarmo y los avisos de mayor prioridad pueden interrumpirlo; la música no se reanuda después. **Detener solo el envío directo** no detiene Alarmo ni otros propietarios de reproducción. El indicador ✓ confirma que se aceptó la reproducción, no que haya sonado físicamente.
+
+En **Configurar → Diagnóstico DLNA** verás el estado real del receptor, SSDP habilitado, URL de descripción, actividad/prioridad del reproductor, última petición HTTP (UTC, IP, método y resultado) y último error HTTP o de arranque observado. El botón **Diagnóstico DLNA** actualiza la vista. Los datos se reinician al recargar la integración y no incluyen URLs de audio ni credenciales. SSDP habilitado no garantiza que un móvil reciba multicast; una petición HTTP puede proceder de un navegador, no necesariamente de un controlador. BubbleUPnP ya ha sido probado por el usuario con audio en Raspberry Pi 4B por Ethernet y Android por Wi-Fi.
+
 ## Si algo no funciona
 
 | Síntoma | Comprobación |
@@ -150,3 +160,5 @@ JackSignal provides a Home Assistant media player using FFmpeg and the default P
 Install the integration from the custom **jacksignal-ha** repository in Marketplace, or use **JackSignal Installer** from **Mis-app** on Home Assistant OS. Marketplace can configure a first installation immediately if the integration has not been loaded before; follow its restart notice for updates or previously loaded integrations. With the installer, click **Start**, check its log, then restart Home Assistant. Repeat those steps after updating the installer. It intentionally stops after copying the integration and does not support automatic startup. Use one installation method to manage updates.
 
 Upload clips in Home Assistant Media. Under JackSignal's configuration, assign sounds and speech rules and review assignments. Use the visual **Play alert** or **Speak sensor value** actions in any automation. Higher or equal priorities replace current audio; lower priorities are dropped. A repeating critical alarm siren is protected. Interrupted music is not resumed. DLNA is not Cast, AirPlay or Spotify Connect.
+
+Direct audio: Configure → Send audio supports native uploads (up to 100 MB), direct HTTP(S) audio URLs and existing local media, at low priority. Valid uploads remain in My media/jacksignal. Video is rejected. The direct stop button cannot stop Alarmo. Configure → DLNA diagnostics shows runtime receiver state and sanitized HTTP activity; refresh manually.

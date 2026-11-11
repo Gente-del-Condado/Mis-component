@@ -37,12 +37,19 @@ async def audio_source(uri: str, metadata: str) -> Sound:
         if media_class and not media_class.startswith("object.item.audioItem"):
             raise fault(714, "Only audio is supported")
         title = root.findtext(".//{http://purl.org/dc/elements/1.1/}title") or title
+    sound = Sound(uri, title, local=False)
+    await inspect_audio(sound)
+    return sound
+
+
+async def inspect_audio(sound: Sound) -> None:
+    """Inspect actual streams, allowing cover art but rejecting video and empty files."""
     process = await asyncio.create_subprocess_exec(
         "ffprobe",
         "-v",
         "error",
         "-protocol_whitelist",
-        "http,https,tcp,tls,crypto",
+        "file" if sound.local else "http,https,tcp,tls,crypto",
         "-rw_timeout",
         "5000000",
         "-analyzeduration",
@@ -53,7 +60,7 @@ async def audio_source(uri: str, metadata: str) -> Sound:
         "stream=codec_type:stream_disposition=attached_pic",
         "-of",
         "json",
-        uri,
+        sound.source,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -75,4 +82,3 @@ async def audio_source(uri: str, metadata: str) -> Sound:
         if process.returncode is None:
             process.kill()
         await process.wait()
-    return Sound(uri, title, local=False)

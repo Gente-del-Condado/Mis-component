@@ -10,6 +10,7 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.helpers.translation import async_get_translations
+from async_upnp_client.exceptions import UpnpActionError
 
 from .alarm import CLOSED_STATES
 from .const import (
@@ -23,6 +24,8 @@ from .const import (
     Priority,
 )
 from .dlna import DLNA, settings
+from .direct import uploaded_audio
+from .dlna_media import audio_source, inspect_audio
 from .media import resolve
 from .selectors import media_selector, priority_selector, validation
 from .speech import SPEECH_RULES, preview
@@ -61,8 +64,71 @@ class SoundOptions(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
-            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "speech", "preview", "dlna"],
+            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "speech", "preview", "direct", "dlna", "dlna_status"],
         )
+
+    async def async_step_dlna_status(self, user_input=None):
+        receiver = self.hass.data.get(DOMAIN)
+        info = receiver.diagnostics() if receiver else {}
+        player = getattr(self.config_entry, "runtime_data", None)
+        values = {key: str(info.get(key, "—")) for key in
+                  ("url", "last_request", "last_error")}
+        values.update(
+            running="✓" if info.get("running") else "—",
+            discovery="✓" if info.get("discovery") else "—",
+            playback="✓" if player and player.sound else "—",
+            priority=f"P{player.priority.value}" if player and player.sound else "—",
+        )
+        return self.async_show_menu(step_id="dlna_status",
+            menu_options=["dlna_status", "dlna", "direct", "init"],
+            description_placeholders=values)
+
+    async def async_step_direct(self, user_input=None):
+        return self.async_show_menu(step_id="direct",
+            menu_options=["direct_upload", "direct_url", "direct_media", "direct_stop", "init"])
+
+    async def async_step_direct_upload(self, user_input=None):
+        return await self._direct_audio("direct_upload", "file", selector.FileSelector({"accept": "audio/*"}), user_input)
+
+    async def async_step_direct_url(self, user_input=None):
+        return await self._direct_audio("direct_url", "url", selector.TextSelector({"type": "url"}), user_input)
+
+    async def async_step_direct_media(self, user_input=None):
+        return await self._direct_audio("direct_media", "sound", media_selector(), user_input)
+
+    async def async_step_direct_stop(self, user_input=None):
+        player = getattr(self.config_entry, "runtime_data", None)
+        if player:
+            await player.stop(owner="direct")
+        return await self.async_step_direct()
+
+    async def _direct_audio(self, step, field, control, user_input):
+        errors = {}
+        status = ""
+        if user_input is not None:
+            try:
+                player = getattr(self.config_entry, "runtime_data", None)
+                if player is None:
+                    raise OSError("Player unavailable")
+                if field == "file":
+                    sound = await uploaded_audio(self.hass, user_input[field])
+                elif field == "url":
+                    sound = await audio_source(user_input[field].strip(), "")
+                else:
+                    sound = await self._validate_sound(user_input[field])
+                    await inspect_audio(sound)
+                if await player.play(sound, Priority.LOW, owner="direct"):
+                    status = "✓"
+                else:
+                    errors["base"] = "higher_priority"
+            except (ValueError, HomeAssistantError, UpnpActionError):
+                errors["base"] = "direct_audio"
+            except OSError:
+                errors["base"] = "direct_unavailable"
+        # Upload IDs are consumed once; URLs (which may contain tokens) are not saved.
+        return self.async_show_form(step_id=step,
+            data_schema=validation.Schema({validation.Required(field): control}),
+            errors=errors, description_placeholders={"status": status})
 
     async def async_step_speech(self, user_input=None):
         if user_input is not None:

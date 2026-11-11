@@ -22,7 +22,9 @@
           "preview": "Test a sound on the jack",
           "dlna": "DLNA: network and port",
           "overview": "View sound assignments",
-          "speech": "Configure sensor speech"
+          "speech": "Configure sensor speech",
+          "direct": "Send audio",
+          "dlna_status": "DLNA diagnostics"
         }
       },
       "alarm": {
@@ -117,6 +119,48 @@
           "priority": "Priority",
           "operation": "Action on submit"
         }
+      },
+      "direct": {
+        "title": "Send audio",
+        "description": "Audio only. Uses low priority (P0): higher-priority alerts and protected sirens are never interrupted. A new request replaces other low-priority playback. Stop affects only playback from this screen.",
+        "menu_options": {
+          "direct_upload": "Upload audio file",
+          "direct_url": "Play audio URL",
+          "direct_media": "Choose from My media",
+          "direct_stop": "Stop direct playback only",
+          "init": "Back"
+        }
+      },
+      "direct_upload": {
+        "title": "Upload audio file",
+        "description": "Choose a file up to 100 MB. Valid audio is saved in My media → jacksignal with a unique name, even if an alert blocks playback. Reuse or delete it from My media. Select the file again after a failed request. {status}\n\n✓ = playback accepted; it does not confirm audible output. Contents are checked: video and files without audio are rejected. Album artwork is allowed.",
+        "data": {
+          "file": "File"
+        }
+      },
+      "direct_url": {
+        "title": "Play audio URL",
+        "description": "Paste a direct HTTP(S) audio or radio URL reachable from Home Assistant. Spotify or YouTube web pages are not audio URLs. The URL is not saved in configuration. {status}\n\n✓ = playback accepted; it does not confirm audible output. Contents are checked: video and files without audio are rejected. Album artwork is allowed.",
+        "data": {
+          "url": "URL"
+        }
+      },
+      "direct_media": {
+        "title": "Choose from My media",
+        "description": "Choose an audio file already saved in My media. {status}\n\n✓ = playback accepted; it does not confirm audible output. Contents are checked: video and files without audio are rejected. Album artwork is allowed.",
+        "data": {
+          "sound": "Audio"
+        }
+      },
+      "dlna_status": {
+        "title": "DLNA diagnostics",
+        "description": "**Current state** (✓ active / — inactive)\n\n- HTTP receiver: {running}\n- SSDP discovery: {discovery}\n- Description: {url}\n- Audio active: {playback} · Priority: {priority}\n- Last HTTP request (UTC time, IP, method, result): {last_request}\n- Last observed DLNA error: {last_error}\n\nSelect DLNA diagnostics to refresh. Data resets when the integration reloads. Enabled SSDP does not prove the phone receives announcements. The last request may come from a browser rather than a controller. Audio URLs and credentials are not displayed.\n\nUse an app supporting DLNA renderers, such as BubbleUPnP. VPN multicast discovery typically needs additional configuration.",
+        "menu_options": {
+          "dlna_status": "DLNA diagnostics",
+          "dlna": "Configure DLNA",
+          "direct": "Send audio",
+          "init": "Back"
+        }
       }
     },
     "error": {
@@ -130,7 +174,9 @@
       "speech_failed": "Could not generate or play speech. Check the sensor, TTS engine and Home Assistant internal URL.",
       "sensor_sound_required": "Select a sound for this alert or set its condition to Never.",
       "same_sensor_states": "Opening and closing states must be different.",
-      "invalid_sensor_state": "Enter a valid state; unknown and unavailable are reserved for unavailable sensors."
+      "invalid_sensor_state": "Enter a valid state; unknown and unavailable are reserved for unavailable sensors.",
+      "direct_audio": "Could not validate audio. Check the file or URL; video is not supported.",
+      "direct_unavailable": "Could not access the file or start FFprobe/FFmpeg. Check storage and logs."
     }
   },
   "selector": {

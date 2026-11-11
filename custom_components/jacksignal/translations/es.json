@@ -22,7 +22,9 @@
           "preview": "Probar un sonido por el jack",
           "dlna": "DLNA: red y puerto",
           "overview": "Ver sonidos asignados",
-          "speech": "Configurar voz de un sensor"
+          "speech": "Configurar voz de un sensor",
+          "direct": "Enviar audio",
+          "dlna_status": "Diagnóstico DLNA"
         }
       },
       "alarm": {
@@ -117,6 +119,48 @@
           "priority": "Prioridad",
           "operation": "Qué hacer al enviar"
         }
+      },
+      "direct": {
+        "title": "Enviar audio",
+        "description": "Solo audio. Se reproduce con prioridad baja (P0): no interrumpe avisos de mayor prioridad ni sirenas protegidas. Un nuevo envío sustituye otra reproducción de prioridad baja. Detener solo afecta a los envíos de esta pantalla.",
+        "menu_options": {
+          "direct_upload": "Subir archivo de audio",
+          "direct_url": "Reproducir URL de audio",
+          "direct_media": "Elegir de Mis medios",
+          "direct_stop": "Detener solo el envío directo",
+          "init": "Volver"
+        }
+      },
+      "direct_upload": {
+        "title": "Subir archivo de audio",
+        "description": "Selecciona un archivo de hasta 100 MB. Los audios válidos se guardan en Mis medios → jacksignal con un nombre único, incluso si un aviso impide reproducirlos. Puedes reutilizarlos o eliminarlos desde Mis medios. Si falla el envío, vuelve a seleccionar el archivo. {status}\n\n✓ = reproducción aceptada; no confirma que el altavoz haya sonado. Se valida el contenido: se rechazan vídeos y archivos sin audio. Las portadas de álbum están permitidas.",
+        "data": {
+          "file": "Archivo"
+        }
+      },
+      "direct_url": {
+        "title": "Reproducir URL de audio",
+        "description": "Pega una URL HTTP(S) directa a un audio o radio, accesible desde Home Assistant. No sirve una página web de Spotify o YouTube. La URL no se guarda en la configuración. {status}\n\n✓ = reproducción aceptada; no confirma que el altavoz haya sonado. Se valida el contenido: se rechazan vídeos y archivos sin audio. Las portadas de álbum están permitidas.",
+        "data": {
+          "url": "URL"
+        }
+      },
+      "direct_media": {
+        "title": "Elegir de Mis medios",
+        "description": "Elige un archivo de audio ya guardado en Mis medios. {status}\n\n✓ = reproducción aceptada; no confirma que el altavoz haya sonado. Se valida el contenido: se rechazan vídeos y archivos sin audio. Las portadas de álbum están permitidas.",
+        "data": {
+          "sound": "Audio"
+        }
+      },
+      "dlna_status": {
+        "title": "Diagnóstico DLNA",
+        "description": "**Estado actual** (✓ activo / — inactivo)\n\n- Receptor HTTP: {running}\n- Descubrimiento SSDP: {discovery}\n- Descripción: {url}\n- Audio activo: {playback} · Prioridad: {priority}\n- Última petición HTTP (hora UTC, IP, método, resultado): {last_request}\n- Último error DLNA observado: {last_error}\n\nPulsa Diagnóstico DLNA para actualizar. Los datos se reinician al recargar la integración. SSDP activo indica que está habilitado, no demuestra que el móvil reciba los anuncios. La última petición puede ser del navegador y no necesariamente de un emisor. No se muestran URLs de audio ni credenciales.\n\nUsa un emisor compatible con receptores DLNA, como BubbleUPnP. Las VPN normalmente requieren configuración adicional para el descubrimiento multicast.",
+        "menu_options": {
+          "dlna_status": "Diagnóstico DLNA",
+          "dlna": "Configurar DLNA",
+          "direct": "Enviar audio",
+          "init": "Volver"
+        }
       }
     },
     "error": {
@@ -130,7 +174,9 @@
       "speech_failed": "No se pudo generar o reproducir la voz. Comprueba el sensor, el motor TTS y la URL interna de Home Assistant.",
       "sensor_sound_required": "Selecciona un sonido para este aviso o cambia su condición a «Nunca».",
       "same_sensor_states": "Apertura y cierre deben tener estados diferentes.",
-      "invalid_sensor_state": "Escribe un estado válido; unknown y unavailable se reservan para desconexiones."
+      "invalid_sensor_state": "Escribe un estado válido; unknown y unavailable se reservan para desconexiones.",
+      "direct_audio": "No se pudo validar el audio. Comprueba el archivo o la URL; no se admiten vídeos.",
+      "direct_unavailable": "No se pudo acceder al archivo o iniciar FFprobe/FFmpeg. Comprueba el almacenamiento y los registros."
     }
   },
   "selector": {

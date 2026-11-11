@@ -5,7 +5,7 @@ import json
 import shutil
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import partial
 from ipaddress import IPv4Address, ip_address
 from pathlib import Path
@@ -119,7 +119,25 @@ class AudioServer(UpnpServer):
             await super()._async_start_ssdp()
 
     async def _async_start_http_server(self):
-        app = web.Application(client_max_size=65536, middlewares=[local_callbacks])
+        @web.middleware
+        async def diagnostics(request, handler):
+            status = 500
+            try:
+                response = await handler(request)
+                status = response.status
+                return response
+            except web.HTTPException as err:
+                status = err.status
+                raise
+            finally:
+                self.receiver.last_request = (
+                    f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} · "
+                    f"{request.remote} · {request.method} · HTTP {status}"
+                )
+                if status >= 400:
+                    self.receiver.last_error = f"HTTP {status}"
+
+        app = web.Application(client_max_size=65536, middlewares=[diagnostics, local_callbacks])
         app.router.add_get(self._device.device_url, partial(to_xml, self._device))
         for service in self._device.all_services:
             info = service.SERVICE_DEFINITION
@@ -168,6 +186,8 @@ class DlnaReceiver:
         self.transport = None
         self._settings = None
         self._lock = asyncio.Lock()
+        self.last_request = "—"
+        self.last_error = "—"
 
     async def configure(self, options):
         desired = settings(options.get(DLNA, {}))
@@ -181,7 +201,8 @@ class DlnaReceiver:
             try:
                 if desired:
                     await self._start(desired)
-            except Exception:
+            except Exception as err:
+                self.last_error = type(err).__name__
                 await self._stop()
                 if previous:
                     await self._start(previous)
@@ -226,12 +247,24 @@ class DlnaReceiver:
             Renderer, (host, 0), http_port=port, boot_id=int(time.time())
         )
         self.server.discovery = discovery
+        self.server.receiver = self
         await self.server.async_start()
         self.transport = self.server._device.service(
             "urn:schemas-upnp-org:service:AVTransport:1"
         )
         self.playback.listeners.add(self.transport.publish)
         self._settings = address
+
+    def diagnostics(self):
+        """Report runtime state, not merely saved options; omit media URLs/tokens."""
+        active = self._settings
+        return {
+            "running": bool(active),
+            "discovery": bool(active and active[2]),
+            "url": f"http://{active[0]}:{active[1]}/description.xml" if active else "—",
+            "last_request": self.last_request,
+            "last_error": self.last_error,
+        }
 
     async def _stop(self):
         if self.transport:
