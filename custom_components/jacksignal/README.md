@@ -90,7 +90,7 @@ Solo aparecen motores TTS configurados en Home Assistant; JackSignal no instala 
 
 Piper genera voz localmente una vez descargado el modelo. También puedes ejecutarlo en otro ordenador de tu red y conectarlo mediante Wyoming. No necesitas micrófono ni un motor de reconocimiento de voz para leer sensores.
 
-Si Google Translate habla en inglés, selecciona **es** en el idioma del aviso. El idioma de la interfaz de Home Assistant no fija el idioma de síntesis. Google Translate necesita Internet; Piper permite mantener la síntesis en casa. El panel muestra los idiomas y voces que cada motor anuncia, no una lista fija. Si no aparecen voces españolas en Piper, configura/instala una en la aplicación y recarga Wyoming. Algunos motores locales requieren una voz explícita: al elegir idioma se propone la primera voz compatible.
+Si Google Translate habla en inglés, selecciona **es** en el idioma del aviso. El idioma de la interfaz de Home Assistant no fija el idioma de síntesis. Google Translate necesita Internet; Piper permite mantener la síntesis en casa. El panel muestra los idiomas y voces que cada motor anuncia, no una lista fija. Si no aparecen voces españolas en Piper, configura/instala una en la aplicación y recarga Wyoming. La opción **Automático** prefiere español de España, después español genérico y después otra variante española disponible. Si no existe ninguna, utiliza el idioma predeterminado del motor. La voz automática se elige dentro del idioma efectivo. Puedes cambiar idioma y voz por aviso; las selecciones explícitas se respetan.
 
 Consulta la [documentación oficial de Piper](https://github.com/home-assistant/apps/blob/master/piper/DOCS.md) y [Google Translate TTS](https://www.home-assistant.io/integrations/google_translate/).
 
@@ -111,7 +111,7 @@ En **Configurar → Configurar voz de un sensor**:
 3. Elige prioridad y disparador: manual, cambio de valor, superar un umbral o bajar de un umbral.
 4. Usa **Probar sin guardar** y después **Guardar**. Vuelve a elegir el sensor para editar o eliminar su regla.
 
-Se guarda una regla por sensor. En **JackSignal → Voz → Editar**, elige el motor, el idioma y una voz compatible; puedes ver la frase con el valor actual y **Escuchar antes de guardar (P0)**. Las reglas antiguas conservan el idioma predeterminado del motor hasta que lo cambies. El formulario nativo conserva la selección del panel mientras no cambies de motor. Los textos son literales, sin plantillas YAML/Jinja. Los sensores binarios leen `on`/`off`; para avisos distintos al abrir y cerrar utiliza las reglas de sonido.
+Se guarda una regla por sensor. En **JackSignal → Voz → Editar**, elige el motor, el idioma y una voz compatible; puedes ver la frase con el valor actual y **Escuchar antes de guardar (P0)**. Desde 0.12.1, las reglas sin idioma ni voz explícitos también prefieren español automáticamente. El formulario nativo conserva la selección del panel mientras no cambies de motor. Los textos son literales, sin plantillas YAML/Jinja. Los sensores binarios leen `on`/`off`; para avisos distintos al abrir y cerrar utiliza las reglas de sonido.
 
 Los umbrales actúan al cruzarlos. El intervalo mínimo entre avisos automáticos es de 60 segundos por defecto: descarta avisos próximos, no los pone en espera. No anuncia valores desconocidos/no disponibles ni cambios de recuperación al arrancar.
 

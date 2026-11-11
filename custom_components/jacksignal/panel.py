@@ -15,7 +15,7 @@ from .alarm import CLOSED_STATES
 from .const import ALARM, DEFAULT_PRIORITIES, DOMAIN, EVENTS, LOCAL_PREFIX, RULES, SENSOR_RULES, Priority
 from .media import AUDIO_EXTENSIONS, resolve
 from .selectors import validation as vol
-from .speech import SPEECH_RULES, audio_for
+from .speech import SPEECH_RULES, audio_for, preferred_language, voice_settings
 from .playback import validate_speed
 
 PANEL = "jacksignal"
@@ -58,7 +58,7 @@ def selected_rule(hass, entry, kind, key):
     return result
 
 
-def voice_info(hass, engine, language=None):
+def voice_info(hass, engine, language=None, voice=None):
     from homeassistant.components.tts import get_engine_instance
 
     try:
@@ -68,11 +68,11 @@ def voice_info(hass, engine, language=None):
     if provider is None:
         raise ValueError("El motor de voz no está disponible. Configúralo en Home Assistant y actualiza la lista.")
     languages = list(provider.supported_languages or [])
-    language = language or provider.default_language
+    language, _ = voice_settings(provider, language, voice)
     if language not in languages:
         raise ValueError("El motor no admite ese idioma. Selecciona uno de la lista.")
     voices = provider.async_get_supported_voices(language) or []
-    return {"languages": languages, "default_language": provider.default_language,
+    return {"languages": languages, "default_language": preferred_language(provider),
             "language": language, "voices": [{"value": v.voice_id, "label": v.name} for v in voices]}
 
 
@@ -155,7 +155,7 @@ async def validate_rule(hass, kind, key, supplied):
             if not rule.get(field):
                 rule.pop(field, None)
         if rule.get("language") or rule.get("voice"):
-            info = voice_info(hass, engine, rule.get("language"))
+            info = voice_info(hass, engine, rule.get("language"), rule.get("voice"))
             if rule.get("voice") and rule["voice"] not in {v["value"] for v in info["voices"]}:
                 raise ValueError("La voz no está disponible para ese idioma.")
         for field in ("before", "after"):
@@ -201,7 +201,7 @@ async def handle(hass, entry, msg):
     """Shared action implementation; the websocket boundary requires an admin."""
     action = msg["action"]
     if action == "tts_info":
-        return voice_info(hass, msg.get("engine", ""), msg.get("language"))
+        return voice_info(hass, msg.get("engine", ""), msg.get("language"), msg.get("voice"))
     if action == "status":
         return playback_status(entry)
     if action == "batch":
@@ -274,7 +274,7 @@ async def handle(hass, entry, msg):
 @websocket_api.websocket_command({vol.Required("type"): "jacksignal/manage", vol.Required("action"): str,
     vol.Optional("kind"): str, vol.Optional("key"): str, vol.Optional("revision"): str,
     vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str,
-    vol.Optional("engine"): str, vol.Optional("language"): str,
+    vol.Optional("engine"): str, vol.Optional("language"): str, vol.Optional("voice"): str,
     vol.Optional("targets"): [dict], vol.Optional("changes"): dict})
 @websocket_api.require_admin
 @websocket_api.async_response

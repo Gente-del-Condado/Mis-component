@@ -47,16 +47,44 @@ def matches(old, new, rule):
     return previous <= threshold < current if trigger == "above" else previous >= threshold > current
 
 
+def preferred_language(provider):
+    """Use the engine's exact language code; prefer Spain, then generic Spanish."""
+    languages = list(provider.supported_languages or [])
+    normalized = {language.replace("_", "-").lower(): language for language in languages}
+    for candidate in ("es-es", "es"):
+        if candidate in normalized:
+            return normalized[candidate]
+    return next((language for language in languages if language.replace("_", "-").lower().startswith("es-")), provider.default_language)
+
+
+def voice_settings(provider, language=None, voice=None):
+    """Resolve automatic Spanish and a matching voice without overriding explicit choices."""
+    if not language:
+        language = preferred_language(provider)
+        if voice:
+            # Older rules may have selected a voice while leaving language automatic.
+            for candidate in dict.fromkeys([provider.default_language, *provider.supported_languages]):
+                if any(item.voice_id == voice for item in provider.async_get_supported_voices(candidate) or []):
+                    language = candidate
+                    break
+    voices = provider.async_get_supported_voices(language) or []
+    return language, voice or (voices[0].voice_id if voices else None)
+
+
 async def audio_for(hass, state, rule):
-    from homeassistant.components.tts import generate_media_source_id
+    from homeassistant.components.tts import generate_media_source_id, get_engine_instance
 
     speed = validate_speed(rule.get("speed", 1.0))
     if not hass.services.has_service("tts", "speak"):
         raise error("speech_engine_unavailable")
+    provider = get_engine_instance(hass, rule["engine"])
+    if provider is None:
+        raise error("speech_engine_unavailable")
+    language, voice = voice_settings(provider, rule.get("language"), rule.get("voice"))
     media_id = generate_media_source_id(
         hass, message_for(state, rule), engine=rule["engine"], cache=False,
-        language=rule.get("language") or None,
-        options={"voice": rule["voice"]} if rule.get("voice") else None,
+        language=language,
+        options={"voice": voice} if voice else None,
     )
     return replace(await resolve(hass, media_id, None), speed=speed)
 

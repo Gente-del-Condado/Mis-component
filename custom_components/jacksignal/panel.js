@@ -237,8 +237,8 @@ class JackSignalPanel extends HTMLElement {
       } else {
         const engine = this.field(root,'engine','Motor de voz (obligatorio)',rule.engine,{choices:[{value:'',label:'Selecciona un motor de voz'},...this.data.engines],required:true});
         if (!this.data.engines.length) root.append(node('p','Configura antes una integración de texto a voz en Home Assistant.',{class:'warning'}));
-        const language = this.field(root,'language','Idioma',rule.language || '',{choices:[{value:'',label:'Predeterminado del motor'}]});
-        this.field(root,'voice','Voz',rule.voice || '',{choices:[{value:'',label:'Predeterminada del motor'}]});
+        const language = this.field(root,'language','Idioma',rule.language || '',{choices:[{value:'',label:'Automático · Preferir español'}]});
+        this.field(root,'voice','Voz',rule.voice || '',{choices:[{value:'',label:'Automática para el idioma'}]});
         const voiceHelp = node('p','', {class:'tip'}); root.append(voiceHelp); this.voiceHelp = voiceHelp;
         engine.addEventListener('change', () => this.loadVoices(true));
         language.addEventListener('change', () => this.loadVoices(false, true));
@@ -288,14 +288,14 @@ class JackSignalPanel extends HTMLElement {
     const engine = controls.engine.value;
     try {
       if (!engine) {this.voiceHelp.textContent = 'Selecciona un motor para consultar sus idiomas y voces.'; return;}
-      const info = await this.request({action:'tts_info',engine,language:controls.language.value});
+      const info = await this.request({action:'tts_info',engine,language:controls.language.value,voice:controls.voice.value});
       if (this.voiceToken !== token || this.controls !== controls || !this.dialog.open) return;
       const languageName = value => {try {return new Intl.DisplayNames(['es'],{type:'language'}).of(value.replaceAll('_','-')) + ` (${value})`;} catch {return value;}};
-      this.fillChoices(controls.language,[{value:'',label:`Predeterminado: ${languageName(info.default_language)}`},...info.languages.map(value => ({value,label:languageName(value)}))],controls.language.value);
-      // Some local engines ignore language unless an explicit voice is selected.
-      const voice = controls.voice.value || (controls.language.value && info.voices[0]?.value) || '';
-      this.fillChoices(controls.voice,[{value:'',label:'Predeterminada del motor'},...info.voices],voice);
-      this.voiceHelp.textContent = `Idioma efectivo: ${languageName(info.language)}. ${info.voices.length ? 'Elige una voz del idioma seleccionado.' : 'Este motor no ofrece voces seleccionables.'}`;
+      this.fillChoices(controls.language,[{value:'',label:`Automático: ${languageName(controls.language.value ? info.default_language : info.language)}`},...info.languages.map(value => ({value,label:languageName(value)}))],controls.language.value);
+      // The backend also resolves an automatic voice matching the effective language.
+      const voice = controls.voice.value || '';
+      this.fillChoices(controls.voice,[{value:'',label:'Automática para el idioma'},...info.voices],voice);
+      this.voiceHelp.textContent = `Idioma efectivo: ${languageName(info.language)}. Automático prefiere español de España cuando está disponible. ${info.voices.length ? 'Elige una voz del idioma seleccionado.' : 'Este motor no ofrece voces seleccionables.'}`;
     } catch(err) {if (this.voiceToken === token) this.voiceHelp.textContent = this.error(err);}
     finally {if(this.voiceToken === token) this.voiceLoading = false;}
   }
