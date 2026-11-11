@@ -178,6 +178,7 @@ class JackSignalPanel extends HTMLElement {
         if (row.rule.failed_to_arm && row.rule.sound) summary.append(node('p','También avisa si impide armar Alarmo.'));
       } else if (row.kind === 'alarm') summary.append(node('p',soundName(row.rule.sound)),node('p',row.rule.repeat ? 'Repetición mientras la alarma esté disparada' : 'Sin repetición'));
       else summary.append(node('p',row.configured ? `${row.rule.before} [valor del sensor] ${row.rule.unit ? '[unidad]' : ''} ${row.rule.after}` : 'Sin frase configurada'),node('p',triggers[row.rule.trigger]));
+      if (row.kind === 'speech' && Object.keys(row.rule.state_labels || {}).length) summary.append(node('p',Object.entries(row.rule.state_labels).map(([raw,spoken]) => `${raw} → ${spoken}`).join(' · ')));
       if (row.kind === 'speech' && row.configured) summary.append(node('p',row.rule.use_defaults ? 'Usa la configuración general de voz' : 'Voz personalizada para este aviso'));
       if (row.kind === 'speech' && row.configured) summary.append(node('p',`Velocidad: ${Number(row.effective?.speed ?? row.rule.speed ?? 1).toLocaleString('es')}×`));
       summary.append(node('p',`Prioridad del aviso: ${labels[row.rule.priority]}`)); article.append(summary);
@@ -219,7 +220,7 @@ class JackSignalPanel extends HTMLElement {
   async edit(row) {
     if (this.busy) return;
     this.$('save').textContent = 'Guardar cambios';
-    this.voiceToken = null; this.voiceLoading = false; this.mode = 'edit'; this.editing = row; this.editRevision = this.data.revision; this.controls = {};
+    this.voiceToken = null; this.voiceLoading = false; this.mode = 'edit'; this.editing = row; this.editRevision = this.data.revision; this.controls = {}; this.stateLabelRows = null;
     this.$('edit-title').textContent = `${row.configured ? 'Editar' : 'Configurar'} · ${row.name}`;
     this.$('edit-help').textContent = row.kind === 'sensor' ? 'Apertura y cierre necesitan su propio sonido. Puedes elegir el mismo para ambos. Los cambios solo se aplican al guardar.' : 'Los cambios solo se aplican al guardar. Desactivar conserva la configuración.';
     this.$('fields').replaceChildren(); this.$('form-error').textContent = '';
@@ -280,8 +281,9 @@ class JackSignalPanel extends HTMLElement {
         trigger.addEventListener('change',updateThreshold); updateThreshold();
         this.field(root,'cooldown','Intervalo mínimo entre avisos (segundos)',rule.cooldown,{type:'number',min:0,max:86400,step:1,required:true});
         const phrase = node('p','',{class:'tip phrase'}); root.append(phrase);
-        const updatePhrase = () => {const r = this.collectRule(); phrase.textContent = 'Dirá: ' + [r.before,row.state ?? '[sensor no disponible]',r.unit ? row.unit : '',r.after].filter(Boolean).join(' ');};
+        const updatePhrase = () => {const r = this.collectRule(); phrase.textContent = 'Dirá: ' + [r.before,Object.hasOwn(r.state_labels || {},row.state) ? r.state_labels[row.state] : row.state ?? '[sensor no disponible]',r.unit ? row.unit : '',r.after].filter(Boolean).join(' ');};
         for (const key of ['before','after','unit']) this.controls[key].addEventListener('input',updatePhrase);
+        this.editStateLabels(root,rule,row,updatePhrase);
         updatePhrase();
         const preview = node('button','Escuchar antes de guardar (P0)',{type:'button'});
         preview.addEventListener('click',async () => {
@@ -400,6 +402,41 @@ class JackSignalPanel extends HTMLElement {
     this.field(this.$('fields'),'target','Sensor de destino (obligatorio)','',{choices:[{value:'',label:'Selecciona el destino'},...targets.map(item => ({value:item.key,label:`${item.name} · ${item.configured ? 'reemplazará su aviso' : 'sin configurar'}`}))],required:true});
     this.controls.target.focus();
   }
+  editStateLabels(root,rule,row,updatePhrase) {
+    const group = node('fieldset'); group.append(node('legend','Qué dice cada estado'));
+    group.append(node('p',`Estado interno actual: ${row.state ?? 'No disponible'}. Escribe el estado exacto que detecta Home Assistant y las palabras que quieres oír.`,{class:'muted'}));
+    group.append(node('p','Ejemplos: on → abierta y off → cerrada; o on → encendido y off → apagado. También puedes usar true/false, open/closed u otros estados. No cambia cuándo se activa el aviso. Sin equivalencia, se lee el valor original.',{class:'tip'}));
+    const list = node('div'); group.append(list); this.stateLabelRows = [];
+    const add = node('button','Añadir equivalencia',{type:'button'});
+    let nextId = 0;
+    const validate = () => {
+      for (const item of this.stateLabelRows) {
+        const duplicate = this.stateLabelRows.some(other => other !== item && other.raw.value === item.raw.value);
+        item.raw.setCustomValidity(duplicate ? 'Este estado ya tiene una equivalencia. Usa una sola fila por estado.' : item.raw.value && !item.raw.value.trim() ? 'Escribe un estado válido.' : '');
+        item.spoken.setCustomValidity(item.spoken.value && !item.spoken.value.trim() ? 'Escribe las palabras que debe decir.' : '');
+      }
+    };
+    const append = (value='',text='',focus=false) => {
+      if (this.stateLabelRows.length >= 32) return;
+      const box = node('fieldset'); box.append(node('legend','Equivalencia de voz'));
+      const inputs = [];
+      for (const [suffix,title,current,limit] of [['state','Cuando detecte (obligatorio)',value,100],['spoken','Decir (obligatorio)',text,200]]) {
+        const id = `voice-map-${nextId}-${suffix}`, wrapper = node('div',null,{class:'field'});
+        const input = node('input',null,{id,name:id,type:'text',maxlength:String(limit),required:''}); input.value = current;
+        if (suffix === 'state') {input.autocapitalize = 'none'; input.spellcheck = false; input.setAttribute('autocorrect','off');}
+        wrapper.append(node('label',title,{for:id}),input); box.append(wrapper); inputs.push(input);
+      }
+      nextId++;
+      const item = {raw:inputs[0],spoken:inputs[1]}; this.stateLabelRows.push(item);
+      for (const input of inputs) input.addEventListener('input',() => {validate();updatePhrase();});
+      const remove = node('button','Eliminar equivalencia',{type:'button'});
+      remove.addEventListener('click',() => {this.stateLabelRows = this.stateLabelRows.filter(other => other !== item);box.remove();add.disabled = false;validate();updatePhrase();add.focus();});
+      box.append(remove); list.append(box); add.disabled = this.stateLabelRows.length >= 32;
+      if (focus) item.raw.focus();
+    };
+    add.addEventListener('click',() => append('','',true)); group.append(add); root.append(group);
+    for (const [raw,spoken] of Object.entries(rule.state_labels || {})) append(raw,spoken);
+  }
   collectRule() {
     const rule = {...this.editing.rule};
     for (const [key,input] of Object.entries(this.controls)) {
@@ -407,6 +444,9 @@ class JackSignalPanel extends HTMLElement {
       else if (input.type === 'checkbox') rule[key] = input.checked;
       else if (input.type === 'number') {if (input.value === '') delete rule[key]; else rule[key] = Number(input.value);}
       else rule[key] = input.value;
+    }
+    if (this.editing.kind === 'speech' && this.stateLabelRows) {
+      rule.state_labels = Object.fromEntries(this.stateLabelRows.map(({raw,spoken}) => [raw.value,spoken.value.trim()]));
     }
     return rule;
   }

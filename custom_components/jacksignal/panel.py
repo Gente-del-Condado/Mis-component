@@ -139,7 +139,7 @@ async def validate_rule(hass, kind, key, supplied, options=None):
         raise ValueError("La configuración no es válida.")
     allowed = {"enabled", "priority"} | ({"sound", "repeat"} if kind == "alarm" else
         {"sound", "close_sound", "open_state", "closed_state", "on_open", "on_close", "failed_to_arm"} if kind == "sensor" else
-        {"engine", "language", "voice", "speed", "use_defaults", "before", "after", "unit", "trigger", "threshold", "cooldown"})
+        {"engine", "language", "voice", "speed", "use_defaults", "before", "after", "unit", "trigger", "threshold", "cooldown", "state_labels"})
     if supplied.keys() - allowed:
         raise ValueError("Hay campos de configuración no reconocidos.")
     rule = {**rule_defaults(hass, kind, key), **deepcopy(supplied)}
@@ -167,6 +167,13 @@ async def validate_rule(hass, kind, key, supplied, options=None):
             info = voice_info(hass, engine, rule.get("language"), rule.get("voice"))
             if rule.get("voice") and rule["voice"] not in {v["value"] for v in info["voices"]}:
                 raise ValueError("La voz no está disponible para ese idioma.")
+        labels = rule.get("state_labels", {})
+        if not isinstance(labels, dict) or len(labels) > 32:
+            raise ValueError("Añade como máximo 32 equivalencias de voz.")
+        for raw, spoken in labels.items():
+            if (not isinstance(raw, str) or not raw.strip() or len(raw) > 100
+                    or not isinstance(spoken, str) or not spoken.strip() or len(spoken) > 200):
+                raise ValueError("Cada equivalencia necesita un estado (hasta 100 caracteres) y un texto (hasta 200).")
         for field in ("before", "after"):
             if not isinstance(rule[field], str) or len(rule[field]) > 1000:
                 raise ValueError("El texto de voz admite hasta 1000 caracteres por campo.")

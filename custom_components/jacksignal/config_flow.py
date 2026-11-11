@@ -151,6 +151,8 @@ class SoundOptions(OptionsFlow):
         if user_input is not None:
             rule = {key: value for key, value in user_input.items() if key != "operation"}
             rule.setdefault("enabled", current.get("enabled", True))
+            if "state_labels" in stored:
+                rule["state_labels"] = dict(stored["state_labels"])
             if stored.get("use_defaults") and rule.get("engine") == current.get("engine"):
                 rule["use_defaults"] = True
             if "speed" in current:
@@ -264,7 +266,8 @@ class SoundOptions(OptionsFlow):
         values["sensors"] = "\n".join(lines) or "—"
         values["speech"] = "\n".join(
             f"- {plain(sensor)}: {plain(rule.get('before', ''))} … {plain(rule.get('after', ''))}"
-            f" · {plain(effective_rule(self.hass, rule, options).get('engine') or '—')} · P{Priority[rule['priority'].upper()].value}"
+            + (" · " + plain(" / ".join(f"{raw} → {spoken}" for raw, spoken in rule["state_labels"].items())) if rule.get("state_labels") else "")
+            + f" · {plain(effective_rule(self.hass, rule, options).get('engine') or '—')} · P{Priority[rule['priority'].upper()].value}"
             f" · {plain(translated('speech_trigger', rule.get('trigger', 'manual')))}"
             for sensor, rule in sorted(options.get(SPEECH_RULES, {}).items())
         ) or "—"

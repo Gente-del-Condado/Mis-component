@@ -52,7 +52,7 @@ def message_for(state, rule):
         raise error("speech_sensor_unavailable")
     unit = state.attributes.get("unit_of_measurement", "") if rule.get("unit", True) else ""
     return " ".join(str(part).strip() for part in (
-        rule.get("before", ""), state.state, unit, rule.get("after", ""),
+        rule.get("before", ""), rule.get("state_labels", {}).get(state.state, state.state), unit, rule.get("after", ""),
     ) if part and str(part).strip())
 
 
