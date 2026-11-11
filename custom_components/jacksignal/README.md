@@ -94,6 +94,14 @@ Si Google Translate habla en inglés, selecciona **es** en el idioma del aviso. 
 
 Consulta la [documentación oficial de Piper](https://github.com/home-assistant/apps/blob/master/piper/DOCS.md) y [Google Translate TTS](https://www.home-assistant.io/integrations/google_translate/).
 
+## Velocidad por aviso (0.12.0)
+
+En **JackSignal → Voz → Editar**, ajusta **Velocidad de voz**, pulsa **Escuchar antes de guardar (P0)** y guarda. El rango es de **0,5× a 2×**: `0,8` más lento, `1` normal, `1,2` más rápido. La tarjeta muestra el valor guardado. Las reglas anteriores usan `1×`; copiar o desactivar un aviso conserva su velocidad.
+
+JackSignal ajusta el tempo del audio generado conservando el tono, tanto con Piper como con otros motores. Este multiplicador se aplica sobre la velocidad configurada en el motor: si cambiaste `length_scale` en Piper, ambos ajustes se combinan. Para una referencia normal común puedes dejar `length_scale` en `1.0` y ajustar cada aviso en JackSignal. No necesitas reiniciar Piper al cambiar la velocidad de un aviso.
+
+Las pruebas siguen usando P0 y las reproducciones automáticas usan la prioridad guardada. El ajuste no afecta a música, DLNA ni sonidos de Alarmo. El formulario nativo de voz conserva la velocidad elegida en el panel.
+
 ## Texto a voz sin YAML
 
 En **Configurar → Configurar voz de un sensor**:

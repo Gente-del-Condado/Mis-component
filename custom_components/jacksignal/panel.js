@@ -167,6 +167,7 @@ class JackSignalPanel extends HTMLElement {
         if (row.rule.failed_to_arm && row.rule.sound) summary.append(node('p','También avisa si impide armar Alarmo.'));
       } else if (row.kind === 'alarm') summary.append(node('p',soundName(row.rule.sound)),node('p',row.rule.repeat ? 'Repetición mientras la alarma esté disparada' : 'Sin repetición'));
       else summary.append(node('p',row.configured ? `${row.rule.before} [valor del sensor] ${row.rule.unit ? '[unidad]' : ''} ${row.rule.after}` : 'Sin frase configurada'),node('p',triggers[row.rule.trigger]));
+      if (row.kind === 'speech' && row.configured) summary.append(node('p',`Velocidad: ${Number(row.rule.speed ?? 1).toLocaleString('es')}×`));
       summary.append(node('p',`Prioridad del aviso: ${labels[row.rule.priority]}`)); article.append(summary);
       if (!this.data.alarm_available && (row.kind === 'alarm' || row.kind === 'sensor' && (row.rule.on_open === 'disarmed' || row.rule.on_close === 'disarmed' || row.rule.failed_to_arm && row.rule.sound))) article.append(node('p','Este aviso o alguna de sus condiciones necesita un panel Alarmo vinculado y disponible.',{class:'warning'}));
       if (row.kind === 'sensor' && row.configured && row.rule.on_open === 'never' && row.rule.on_close === 'never' && !row.rule.failed_to_arm) article.append(node('p','Tiene sonidos guardados, pero ninguna condición de aviso activa.',{class:'warning'}));
@@ -242,6 +243,9 @@ class JackSignalPanel extends HTMLElement {
         engine.addEventListener('change', () => this.loadVoices(true));
         language.addEventListener('change', () => this.loadVoices(false, true));
         root.append(node('p','¿Quieres voz local? Instala Piper, elige una voz española y añade su integración Wyoming. Después actualiza este panel. Solo aparecen motores configurados en Home Assistant.',{class:'muted'}));
+        const speed = this.field(root,'speed','Velocidad de voz (obligatoria)',rule.speed ?? 1,{type:'number',min:0.5,max:2,step:0.05,required:true});
+        speed.setAttribute('aria-describedby','speed-help');
+        root.append(node('p','De 0,5× a 2×. 0,8× más lento · 1× normal · 1,2× más rápido. Conserva el tono. Se aplica sobre la velocidad configurada en Piper o en tu motor de voz.',{id:'speed-help',class:'muted'}));
         this.field(root,'before','Texto antes del valor',rule.before,{maxlength:1000});
         this.field(root,'after','Texto después del valor',rule.after,{maxlength:1000});
         this.field(root,'unit','Añadir la unidad del sensor',rule.unit,{type:'checkbox'});

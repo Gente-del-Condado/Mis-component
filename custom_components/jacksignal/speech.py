@@ -1,6 +1,7 @@
 """Configured sensor speech using Home Assistant TTS and JackSignal priorities."""
 
 import asyncio
+from dataclasses import replace
 import logging
 import math
 import time
@@ -10,6 +11,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import Priority
 from .media import error, resolve
+from .playback import validate_speed
 
 SPEECH_RULES = "speech_rules"
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +50,7 @@ def matches(old, new, rule):
 async def audio_for(hass, state, rule):
     from homeassistant.components.tts import generate_media_source_id
 
+    speed = validate_speed(rule.get("speed", 1.0))
     if not hass.services.has_service("tts", "speak"):
         raise error("speech_engine_unavailable")
     media_id = generate_media_source_id(
@@ -55,7 +58,7 @@ async def audio_for(hass, state, rule):
         language=rule.get("language") or None,
         options={"voice": rule["voice"]} if rule.get("voice") else None,
     )
-    return await resolve(hass, media_id, None)
+    return replace(await resolve(hass, media_id, None), speed=speed)
 
 
 async def preview(hass, playback, sensor, rule):

@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 import logging
+import math
 import signal
 from typing import Any
 
@@ -19,6 +20,16 @@ class Sound:
     source: str
     title: str
     local: bool
+    speed: float = 1.0
+
+    def __post_init__(self):
+        validate_speed(self.speed)
+
+
+def validate_speed(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0.5 <= value <= 2.0:
+        raise ValueError("La velocidad debe estar entre 0,5 y 2,0, con 1,0 como velocidad normal.")
+    return value
 
 
 class Playback:
@@ -75,7 +86,7 @@ class Playback:
                     # A bounded buffer and trailing silence keep the audible tail
                     # alive until it reaches the sink. Infinite loops do not reach
                     # EOF, so apad does not insert gaps between siren iterations.
-                    "-af", "apad=pad_dur=1", "-f", "pulse", "-buffer_duration", "200",
+                    "-af", (f"atempo={sound.speed:g}," if sound.speed != 1 else "") + "apad=pad_dur=1", "-f", "pulse", "-buffer_duration", "200",
                     "-name", "JackSignal", "default",
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,

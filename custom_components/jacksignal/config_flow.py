@@ -150,6 +150,8 @@ class SoundOptions(OptionsFlow):
         if user_input is not None:
             rule = {key: value for key, value in user_input.items() if key != "operation"}
             rule.setdefault("enabled", current.get("enabled", True))
+            if "speed" in current:
+                rule["speed"] = current["speed"]
             if rule.get("engine") == current.get("engine"):
                 for field in ("language", "voice"):
                     if current.get(field):

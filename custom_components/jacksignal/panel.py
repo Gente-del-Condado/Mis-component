@@ -16,6 +16,7 @@ from .const import ALARM, DEFAULT_PRIORITIES, DOMAIN, EVENTS, LOCAL_PREFIX, RULE
 from .media import AUDIO_EXTENSIONS, resolve
 from .selectors import validation as vol
 from .speech import SPEECH_RULES, audio_for
+from .playback import validate_speed
 
 PANEL = "jacksignal"
 DATA = "jacksignal_panel"
@@ -31,7 +32,7 @@ def rule_defaults(hass, kind, key):
     if kind == "alarm":
         return {"enabled": True, "priority": DEFAULT_PRIORITIES[key].name.lower(), "repeat": key == "triggered"}
     if kind == "speech":
-        return {"enabled": True, "priority": "low", "before": "", "after": "", "unit": True, "trigger": "manual", "cooldown": 60}
+        return {"enabled": True, "priority": "low", "before": "", "after": "", "unit": True, "trigger": "manual", "cooldown": 60, "speed": 1.0}
     from .config_flow import suggested_sensor_states
     opened, closed = suggested_sensor_states(hass.states.get(key))
     return {"enabled": True, "priority": "high", "open_state": opened, "closed_state": closed,
@@ -134,7 +135,7 @@ async def validate_rule(hass, kind, key, supplied):
         raise ValueError("La configuración no es válida.")
     allowed = {"enabled", "priority"} | ({"sound", "repeat"} if kind == "alarm" else
         {"sound", "close_sound", "open_state", "closed_state", "on_open", "on_close", "failed_to_arm"} if kind == "sensor" else
-        {"engine", "language", "voice", "before", "after", "unit", "trigger", "threshold", "cooldown"})
+        {"engine", "language", "voice", "speed", "before", "after", "unit", "trigger", "threshold", "cooldown"})
     if supplied.keys() - allowed:
         raise ValueError("Hay campos de configuración no reconocidos.")
     rule = {**rule_defaults(hass, kind, key), **deepcopy(supplied)}
@@ -144,6 +145,7 @@ async def validate_rule(hass, kind, key, supplied):
         if field in rule and not isinstance(rule[field], bool):
             raise ValueError("El estado de activación no es válido.")
     if kind == "speech":
+        rule["speed"] = validate_speed(rule.get("speed", 1.0))
         engine = rule.get("engine")
         if not isinstance(engine, str) or not engine.startswith("tts."):
             raise ValueError("Selecciona un motor de voz configurado en Home Assistant.")
