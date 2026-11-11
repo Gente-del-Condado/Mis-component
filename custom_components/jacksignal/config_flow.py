@@ -28,7 +28,7 @@ from .direct import uploaded_audio
 from .dlna_media import audio_source, inspect_audio
 from .media import resolve
 from .selectors import media_selector, priority_selector, validation
-from .speech import SPEECH_RULES, preview
+from .speech import SPEECH_RULES, preview, effective_rule
 
 
 def suggested_sensor_states(state):
@@ -145,11 +145,14 @@ class SoundOptions(OptionsFlow):
     async def async_step_speech_rule(self, user_input=None):
         options = dict(self.config_entry.options)
         rules = dict(options.get(SPEECH_RULES, {}))
-        current = rules.get(self._key, {})
+        stored = rules.get(self._key, {})
+        current = effective_rule(self.hass, stored, options)
         errors, status = {}, ""
         if user_input is not None:
             rule = {key: value for key, value in user_input.items() if key != "operation"}
             rule.setdefault("enabled", current.get("enabled", True))
+            if stored.get("use_defaults") and rule.get("engine") == current.get("engine"):
+                rule["use_defaults"] = True
             if "speed" in current:
                 rule["speed"] = current["speed"]
             if rule.get("engine") == current.get("engine"):
@@ -168,7 +171,7 @@ class SoundOptions(OptionsFlow):
                     errors["engine"] = "speech_engine"
                 if operation == "preview" and not errors:
                     try:
-                        accepted = await preview(self.hass, self.config_entry.runtime_data, self._key, rule)
+                        accepted = await preview(self.hass, self.config_entry.runtime_data, self._key, effective_rule(self.hass, rule, options))
                         if not accepted:
                             errors["base"] = "higher_priority"
                         else:
@@ -261,7 +264,7 @@ class SoundOptions(OptionsFlow):
         values["sensors"] = "\n".join(lines) or "—"
         values["speech"] = "\n".join(
             f"- {plain(sensor)}: {plain(rule.get('before', ''))} … {plain(rule.get('after', ''))}"
-            f" · {plain(rule['engine'])} · P{Priority[rule['priority'].upper()].value}"
+            f" · {plain(effective_rule(self.hass, rule, options).get('engine') or '—')} · P{Priority[rule['priority'].upper()].value}"
             f" · {plain(translated('speech_trigger', rule.get('trigger', 'manual')))}"
             for sensor, rule in sorted(options.get(SPEECH_RULES, {}).items())
         ) or "—"

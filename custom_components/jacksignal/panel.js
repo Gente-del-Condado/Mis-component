@@ -46,6 +46,7 @@ class JackSignalPanel extends HTMLElement {
         <div class="tools"><p id="panel-info" class="muted">Cargando configuración…</p><div class="actions"><a class="button" href="/config/integrations/integration/jacksignal">Configuración y audio</a><button id="refresh" type="button">Actualizar</button></div></div>
         <div class="overview" aria-label="Resumen de avisos"><div class="metric"><strong id="count-active">—</strong>Activados</div><div class="metric"><strong id="count-disabled">—</strong>Desactivados</div><div class="metric"><strong id="count-empty">—</strong>Sin configurar</div><div class="metric" id="live">Consultando reproducción…</div></div>
         <div class="nav" role="group" aria-label="Tipo de aviso"><button type="button" data-kind="sensor" aria-pressed="true">Sensores</button><button type="button" data-kind="alarm" aria-pressed="false">Alarmo</button><button type="button" data-kind="speech" aria-pressed="false">Voz</button></div>
+        <section id="voice-general" class="tip" hidden><h2>Voz predeterminada</h2><p id="voice-general-info"></p><div class="actions"><button id="voice-defaults" type="button">Configurar voz general</button><button id="piper-prepare" type="button">Preparar Piper</button><a class="button" href="/config/integrations/dashboard">Conectar Wyoming</a><a id="piper-app" class="button" href="/hassio/addon/core_piper/info">Abrir Piper</a></div><p id="piper-status" role="status"></p></section>
         <search aria-label="Buscar avisos"><div class="filters"><div class="field"><label for="query">Buscar por nombre, sensor o sonido</label><input id="query" type="search" name="query" placeholder="Por ejemplo, ventana del salón" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="filter">Mostrar</label><select id="filter" name="filter"><option value="all">Todos</option><option value="configured">Configurados y activados</option><option value="unconfigured">Sin configurar</option><option value="disabled">Desactivados</option></select></div></div></search>
         <div class="actions"><button id="compact" type="button" aria-pressed="true">Vista compacta</button><button id="select-visible" type="button">Seleccionar configurados visibles</button><button id="clear-selection" type="button">Quitar selección</button></div>
         <div id="batch-tools" class="actions" hidden><span id="selection-count"></span><button id="batch-edit" type="button">Modificar selección</button></div>
@@ -70,6 +71,8 @@ class JackSignalPanel extends HTMLElement {
     this.$('compact').addEventListener('click', () => {const compact = this.$('cards').classList.toggle('compact'); this.$('compact').setAttribute('aria-pressed',String(compact));});
     this.$('clear-selection').addEventListener('click', () => {this.selected.clear(); this.renderList();});
     this.$('select-visible').addEventListener('click', () => {for (const row of this.visibleRows || []) if (row.configured && this.selected.size < 200) this.selected.add(row.key); this.renderList();});
+    this.$('voice-defaults').addEventListener('click', () => this.editDefaults());
+    this.$('piper-prepare').addEventListener('click', () => this.preparePiper());
     this.$('batch-edit').addEventListener('click', () => this.editBatch());
   }
   set hass(value) {
@@ -102,6 +105,7 @@ class JackSignalPanel extends HTMLElement {
   error(err) {return err?.message || 'No se pudo conectar con JackSignal. Actualiza la página e inténtalo de nuevo.';}
   setBusy(value) {
     this.busy = value; this.$('loading').hidden = !value;
+    this.$('voice-defaults').disabled = value; this.$('piper-prepare').disabled = value;
     this.$('batch-edit').disabled = value; this.$('select-visible').disabled = value;
     this.$('refresh').disabled = value; this.$('stop').disabled = value;
     for (const card of this.cards.values()) card.querySelectorAll('input[type=checkbox]').forEach(input => {input.disabled = value;});
@@ -127,6 +131,13 @@ class JackSignalPanel extends HTMLElement {
   renderList() {
     if (!this.data) return;
     this.renderStatus(this.data.playback);
+    this.$('voice-general').hidden = this.kind !== 'speech';
+    const general = this.data.voice_defaults || {speed:1};
+    const engineLabel = this.data.engines.find(item => item.value === general.engine)?.label;
+    this.$('voice-general-info').textContent = `${engineLabel || 'Sin motor general disponible'} · ${general.language || 'Automático: preferir español'} · ${Number(general.speed).toLocaleString('es')}×. ${this.data.piper_engines?.length ? 'Piper está conectado mediante Wyoming.' : 'No se ha detectado un motor Piper conectado. Puede faltar instalarlo o añadir Wyoming.'}`;
+    this.$('piper-prepare').hidden = !this.data.supervisor;
+    this.$('piper-app').hidden = !this.data.supervisor;
+    if (!this.data.supervisor) this.$('piper-status').textContent = 'La instalación desde aquí requiere Home Assistant OS con Supervisor. Puedes conectar un servidor Piper externo mediante Wyoming.';
     for (const [status,id] of [['configured','active'],['disabled','disabled'],['unconfigured','empty']]) this.$(`count-${id}`).textContent = this.data.rows.filter(row => row.status === status).length;
     this.selectionStatus();
     this.$('panel-info').textContent = this.data.alarm ? `Panel vinculado: ${this.data.alarm}${this.data.alarm_available ? '' : ' · No disponible'}` : 'Sin panel Alarmo vinculado. Los avisos de sensores en modo «Siempre» funcionan igualmente.';
@@ -167,7 +178,8 @@ class JackSignalPanel extends HTMLElement {
         if (row.rule.failed_to_arm && row.rule.sound) summary.append(node('p','También avisa si impide armar Alarmo.'));
       } else if (row.kind === 'alarm') summary.append(node('p',soundName(row.rule.sound)),node('p',row.rule.repeat ? 'Repetición mientras la alarma esté disparada' : 'Sin repetición'));
       else summary.append(node('p',row.configured ? `${row.rule.before} [valor del sensor] ${row.rule.unit ? '[unidad]' : ''} ${row.rule.after}` : 'Sin frase configurada'),node('p',triggers[row.rule.trigger]));
-      if (row.kind === 'speech' && row.configured) summary.append(node('p',`Velocidad: ${Number(row.rule.speed ?? 1).toLocaleString('es')}×`));
+      if (row.kind === 'speech' && row.configured) summary.append(node('p',row.rule.use_defaults ? 'Usa la configuración general de voz' : 'Voz personalizada para este aviso'));
+      if (row.kind === 'speech' && row.configured) summary.append(node('p',`Velocidad: ${Number(row.effective?.speed ?? row.rule.speed ?? 1).toLocaleString('es')}×`));
       summary.append(node('p',`Prioridad del aviso: ${labels[row.rule.priority]}`)); article.append(summary);
       if (!this.data.alarm_available && (row.kind === 'alarm' || row.kind === 'sensor' && (row.rule.on_open === 'disarmed' || row.rule.on_close === 'disarmed' || row.rule.failed_to_arm && row.rule.sound))) article.append(node('p','Este aviso o alguna de sus condiciones necesita un panel Alarmo vinculado y disponible.',{class:'warning'}));
       if (row.kind === 'sensor' && row.configured && row.rule.on_open === 'never' && row.rule.on_close === 'never' && !row.rule.failed_to_arm) article.append(node('p','Tiene sonidos guardados, pero ninguna condición de aviso activa.',{class:'warning'}));
@@ -215,7 +227,7 @@ class JackSignalPanel extends HTMLElement {
     try {
       const media = row.kind === 'speech' ? {items:[]} : await this.request({action:'media'});
       if (!this.dialog.open || this.editing !== row) return;
-      const root = this.$('fields'), rule = row.rule;
+      const root = this.$('fields'), rule = row.kind === 'speech' && row.rule.use_defaults ? {...row.rule,...this.data.voice_defaults} : row.rule;
       if (media.truncated) root.append(node('p','La lista de archivos está limitada. Los archivos ya asignados se conservan. Usa los formularios de configuración para explorar el resto.',{class:'warning'}));
       if (row.kind !== 'speech' && !media.items.length) root.append(node('p','No hay archivos de audio en Mis medios. Súbelos desde Configuración y audio → Enviar audio.',{class:'warning'}));
       const choices = [{value:'',label:'Sin sonido'},...media.items];
@@ -235,6 +247,7 @@ class JackSignalPanel extends HTMLElement {
         selectSound(root,'sound','Sonido (obligatorio)'); this.controls.sound.required = true;
         if (row.key === 'triggered') this.field(root,'repeat','Repetir mientras la alarma esté disparada',rule.repeat,{type:'checkbox'});
       } else {
+        const inherit = this.field(root,'use_defaults','Usar motor, idioma, voz y velocidad generales',!!rule.use_defaults,{type:'checkbox'});
         const engine = this.field(root,'engine','Motor de voz (obligatorio)',rule.engine,{choices:[{value:'',label:'Selecciona un motor de voz'},...this.data.engines],required:true});
         if (!this.data.engines.length) root.append(node('p','Configura antes una integración de texto a voz en Home Assistant.',{class:'warning'}));
         const language = this.field(root,'language','Idioma',rule.language || '',{choices:[{value:'',label:'Automático · Preferir español'}]});
@@ -244,6 +257,18 @@ class JackSignalPanel extends HTMLElement {
         language.addEventListener('change', () => this.loadVoices(false, true));
         root.append(node('p','¿Quieres voz local? Instala Piper, elige una voz española y añade su integración Wyoming. Después actualiza este panel. Solo aparecen motores configurados en Home Assistant.',{class:'muted'}));
         const speed = this.field(root,'speed','Velocidad de voz (obligatoria)',rule.speed ?? 1,{type:'number',min:0.5,max:2,step:0.05,required:true});
+        const updateInheritance = () => {
+          if (inherit.checked) {
+            const defaults = this.data.voice_defaults || {};
+            this.fillChoices(engine,[{value:'',label:'Sin motor general'},...this.data.engines],defaults.engine || '');
+            this.fillChoices(language,[{value:'',label:'Automático · Preferir español'}],defaults.language || '');
+            this.fillChoices(this.controls.voice,[{value:'',label:'Automática para el idioma'}],defaults.voice || '');
+            speed.value = defaults.speed ?? 1;
+          }
+          for (const key of ['engine','language','voice','speed']) this.controls[key].disabled = inherit.checked;
+          this.loadVoices(false);
+        };
+        inherit.addEventListener('change',updateInheritance); updateInheritance();
         speed.setAttribute('aria-describedby','speed-help');
         root.append(node('p','De 0,5× a 2×. 0,8× más lento · 1× normal · 1,2× más rápido. Conserva el tono. Se aplica sobre la velocidad configurada en Piper o en tu motor de voz.',{id:'speed-help',class:'muted'}));
         this.field(root,'before','Texto antes del valor',rule.before,{maxlength:1000});
@@ -274,6 +299,59 @@ class JackSignalPanel extends HTMLElement {
       this.field(root,'priority','Prioridad del aviso',rule.priority,{choices:Object.entries(labels).map(([value,label]) => ({value,label}))});
       this.$('save').disabled = false;
     } catch (err) {this.$('form-error').textContent = this.error(err);}
+  }
+  editDefaults() {
+    if (this.busy) return;
+    this.simpleEditor('defaults','Voz predeterminada','Los nuevos avisos heredarán estos valores. Los existentes conservarán sus ajustes salvo que marques «Aplicar a todos». Cada aviso puede personalizarse después.');
+    const root = this.$('fields'), rule = this.data.voice_defaults || {};
+    const engine = this.field(root,'engine','Motor general (obligatorio)',rule.engine,{choices:[{value:'',label:'Selecciona Piper u otro motor'},...this.data.engines],required:true});
+    const language = this.field(root,'language','Idioma',rule.language || '',{choices:[{value:'',label:'Automático · Preferir español'}]});
+    this.field(root,'voice','Voz',rule.voice || '',{choices:[{value:'',label:'Automática para el idioma'}]});
+    this.voiceHelp = node('p','',{class:'tip'}); root.append(this.voiceHelp);
+    this.field(root,'speed','Velocidad general (obligatoria)',rule.speed ?? 1,{type:'number',min:0.5,max:2,step:0.05,required:true});
+    root.append(node('p','0,8× más lento · 1× normal · 1,2× más rápido. La prioridad de cada aviso se conserva.'));
+    this.field(root,'apply_to_all','Aplicar estos valores a todos los avisos de voz existentes',false,{type:'checkbox'});
+    engine.addEventListener('change',() => this.loadVoices(true));
+    language.addEventListener('change',() => this.loadVoices(false,true));
+    this.loadVoices(); engine.focus();
+  }
+  preparePiper() {
+    if (this.busy || !this.data.supervisor) return;
+    this.simpleEditor('install','Preparar Piper local','Se comprobará si la aplicación oficial Piper está instalada. Si falta, se descargará, se configurará es_ES-davefx-medium y el inicio automático, y se iniciará. Necesita Internet y espacio libre; puede tardar varios minutos. Mantén esta pantalla abierta. Si ya existe, se conserva su configuración y se inicia si está detenida. Después debes completar Wyoming en Dispositivos y servicios.');
+    this.field(this.$('fields'),'consent','Entiendo los cambios y quiero preparar Piper (obligatorio)',false,{type:'checkbox',required:true});
+    this.$('save').textContent = 'Preparar Piper'; this.controls.consent.focus();
+  }
+  async installPiper() {
+    if (!this.data.supervisor || !this.controls.consent.checked) return;
+    this.saving = true; this.$('save').disabled = true; this.$('cancel').disabled = true;
+    const guard = event => event.preventDefault(); this.dialog.addEventListener('cancel',guard);
+    const status = text => {this.$('form-error').textContent = text;};
+    const api = (endpoint, method='get',data={}) => this._hass.callWS({type:'supervisor/api',endpoint,method,data,timeout:600});
+    try {
+      status('Comprobando la aplicación Piper…');
+      const installed = await api('/addons');
+      if (!Array.isArray(installed.addons)) throw new Error('No se pudo consultar la lista de aplicaciones.');
+      const existing = installed.addons.some(app => app.slug === 'core_piper');
+      if (!existing) {
+        status('Instalando Piper. Puede tardar varios minutos…');
+        await api('/addons/core_piper/install','post');
+        const info = await api('/addons/core_piper/info');
+        const options = {...info.options,voice:'es_ES-davefx-medium'};
+        if ('backend' in options) options.backend = 'piper';
+        await api('/addons/core_piper/options','post',{options,boot:'auto'});
+      }
+      const info = await api('/addons/core_piper/info');
+      if (info.state !== 'started') {status('Iniciando Piper y preparando la voz…'); await api('/addons/core_piper/start','post');}
+      const finalInfo = await api('/addons/core_piper/info');
+      if (finalInfo.state !== 'started') throw new Error('Piper todavía no está iniciado. Revisa su aplicación y registros.');
+      const message = existing ? 'Piper ya estaba instalado; su configuración se conserva. Completa Wyoming si falta y pulsa Actualizar.' : 'Piper instalado e iniciado con voz española. Ahora añade Wyoming en Dispositivos y servicios y pulsa Actualizar.';
+      this.$('piper-status').textContent = message; status(message);
+    } catch (err) {
+      status(`No se ha completado la preparación. ${this.error(err)} Revisa Piper desde «Abrir Piper» antes de reintentar; la instalación puede haber quedado parcialmente completada.`);
+    } finally {
+      this.saving = false; this.$('save').disabled = false; this.$('cancel').disabled = false;
+      this.dialog.removeEventListener('cancel',guard);
+    }
   }
   fillChoices(input, choices, value) {
     input.replaceChildren();
@@ -334,6 +412,7 @@ class JackSignalPanel extends HTMLElement {
   }
   async save() {
     if (this.saving || this.$('save').disabled || this.voiceLoading) return;
+    if (this.mode === 'install') {await this.installPiper(); return;}
     if (this.mode === 'copy') {
       const target = this.data.rows.find(row => row.kind === this.editing.kind && row.key === this.controls.target.value);
       if (!target) return;
@@ -341,7 +420,7 @@ class JackSignalPanel extends HTMLElement {
       if (target.kind === 'sensor') {rule.open_state = target.rule.open_state; rule.closed_state = target.rule.closed_state;}
       this.dialog.close(); this.edit({...target,rule}); return;
     }
-    const rule = this.mode === 'batch' ? null : this.collectRule();
+    const rule = this.mode === 'batch' ? null : this.mode === 'defaults' ? Object.fromEntries(['engine','language','voice','speed'].map(key => [key,key === 'speed' ? Number(this.controls[key].value) : this.controls[key].value])) : this.collectRule();
     const changes = {};
     if (this.mode === 'batch') {
       if (this.controls.enabled.value) changes.enabled = this.controls.enabled.value === 'true';
@@ -351,7 +430,7 @@ class JackSignalPanel extends HTMLElement {
     this.saving = true; this.$('save').disabled = true; this.$('cancel').disabled = true;
     const guard = e => e.preventDefault(); this.dialog.addEventListener('cancel',guard);
     try {
-      this.data = await this.request(this.mode === 'batch' ? {action:'batch',targets:this.batchTargets,changes,revision:this.editRevision} : {action:'save',kind:this.editing.kind,key:this.editing.key,revision:this.editRevision,rule});
+      this.data = await this.request(this.mode === 'defaults' ? {action:'defaults',rule,apply_to_all:this.controls.apply_to_all.checked,revision:this.editRevision} : this.mode === 'batch' ? {action:'batch',targets:this.batchTargets,changes,revision:this.editRevision} : {action:'save',kind:this.editing.kind,key:this.editing.key,revision:this.editRevision,rule});
       this.selected.clear();
       this.dialog.close(); this.renderList(); this.$('results').focus(); this.$('message').textContent = 'Cambios guardados.';
     } catch (err) {this.$('form-error').textContent = this.error(err); this.$('form-error').focus();}

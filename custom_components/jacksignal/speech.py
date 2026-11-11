@@ -14,8 +14,36 @@ from .media import error, resolve
 from .playback import validate_speed
 
 SPEECH_RULES = "speech_rules"
+SPEECH_DEFAULTS = "speech_defaults"
+VOICE_FIELDS = ("engine", "language", "voice", "speed")
 _LOGGER = logging.getLogger(__name__)
 INVALID = {"unknown", "unavailable", ""}
+
+
+def piper_engines(hass):
+    """Use the integration's original entity name, independent of user renames."""
+    from homeassistant.helpers import entity_registry as er
+    registry = er.async_get(hass)
+    result = []
+    for state in hass.states.async_all("tts"):
+        entry = registry.async_get(state.entity_id)
+        if entry and entry.platform == "wyoming" and (entry.original_name or "").casefold() == "piper":
+            result.append(state.entity_id)
+    return sorted(result)
+
+
+def general_voice(hass, options):
+    saved = options.get(SPEECH_DEFAULTS, {})
+    candidates = piper_engines(hass)
+    return {"engine": saved.get("engine") or (candidates[0] if len(candidates) == 1 else ""),
+            "language": saved.get("language", ""), "voice": saved.get("voice", ""),
+            "speed": saved.get("speed", 1.0)}
+
+
+def effective_rule(hass, rule, options):
+    if not rule.get("use_defaults", False):
+        return dict(rule)
+    return {**rule, **general_voice(hass, options)}
 
 
 def message_for(state, rule):
@@ -77,7 +105,10 @@ async def audio_for(hass, state, rule):
     speed = validate_speed(rule.get("speed", 1.0))
     if not hass.services.has_service("tts", "speak"):
         raise error("speech_engine_unavailable")
-    provider = get_engine_instance(hass, rule["engine"])
+    try:
+        provider = get_engine_instance(hass, rule.get("engine", ""))
+    except KeyError:
+        provider = None
     if provider is None:
         raise error("speech_engine_unavailable")
     language, voice = voice_settings(provider, rule.get("language"), rule.get("voice"))
@@ -97,6 +128,7 @@ async def preview(hass, playback, sensor, rule):
 class SensorSpeech:
     def __init__(self, hass, playback, options):
         self.hass, self.playback = hass, playback
+        self.options = options
         self.rules = options.get(SPEECH_RULES, {})
         self._unsubscribe = None
         self._generation = 0
@@ -119,6 +151,7 @@ class SensorSpeech:
 
     def update_options(self, options):
         self.close()
+        self.options = options
         self.rules = options.get(SPEECH_RULES, {})
         self._last.clear()
         self.start()
@@ -131,7 +164,7 @@ class SensorSpeech:
             raise error("rule_disabled")
         generation = self._generation
         state = self.hass.states.get(sensor)
-        sound = await audio_for(self.hass, state, rule)
+        sound = await audio_for(self.hass, state, effective_rule(self.hass, rule, self.options))
         if generation != self._generation:
             return False
         return await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
@@ -151,7 +184,7 @@ class SensorSpeech:
             self._last[sensor] = now
             generation = self._generation
             try:
-                sound = await audio_for(self.hass, new, rule)
+                sound = await audio_for(self.hass, new, effective_rule(self.hass, rule, self.options))
                 if generation != self._generation or self.hass.states.get(sensor) != new:
                     return
                 await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")

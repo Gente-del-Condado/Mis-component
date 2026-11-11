@@ -79,6 +79,18 @@ Los sensores binarios con condición **siempre** funcionan sin Alarmo. **Solo de
 
 Desactiva las acciones antiguas que ejecuten FFmpeg directamente cuando hayas comprobado las reglas nuevas: el audio externo a JackSignal no participa en sus prioridades.
 
+## Voz general e instalación asistida (0.13.0)
+
+En **JackSignal → Voz → Configurar voz general**, elige el motor predeterminado, idioma, voz y velocidad. Si hay un único motor Piper de Wyoming conectado, se propone automáticamente, aunque hayas cambiado su nombre. El idioma automático prefiere español y la velocidad inicial es 1×. Si hay varios Piper, selecciona el adecuado; JackSignal no cambia a un motor en la nube si Piper falta.
+
+Los avisos nuevos creados desde el panel heredan estos valores. Para aplicar la configuración a los que ya tienes, marca **Aplicar estos valores a todos los avisos de voz existentes** y guarda. Sus textos, condiciones, activación y prioridades se conservan. En cualquier aviso puedes desmarcar **Usar motor, idioma, voz y velocidad generales** para personalizarlo. Las tarjetas indican si usan la configuración general o una propia. Los cambios generales afectan a las próximas reproducciones; no cambian un audio que ya esté sonando.
+
+**Preparar Piper**, disponible con Supervisor, solicita confirmación en el panel antes de realizar cambios. Si falta la aplicación oficial, la instala, configura `es_ES-davefx-medium`, activa su inicio automático y la inicia. Necesita Internet, espacio libre y puede tardar varios minutos; mantén la pantalla abierta. Si ya está instalada, conserva sus opciones y solo la inicia si no está iniciada. No abre puertos ni cambia protecciones.
+
+Después completa el descubrimiento **Wyoming** en **Dispositivos y servicios**, vuelve al panel y pulsa **Actualizar**. La aplicación instalada y la entidad TTS conectada son pasos distintos. Si la preparación falla o se pierde la conexión, consulta **Abrir Piper** y sus registros antes de reintentar: puede haber terminado solo una parte. En Home Assistant Container se puede conectar un Piper externo con Wyoming, pero no instalar una aplicación de Supervisor desde este panel.
+
+La instalación asistida se ha verificado con respuestas simuladas de Supervisor; queda pendiente probarla en un Home Assistant OS real. Las pruebas de audio mantienen P0 y los avisos usan su prioridad habitual.
+
 ## Voz local y español
 
 Solo aparecen motores TTS configurados en Home Assistant; JackSignal no instala motores por su cuenta. Para una Raspberry Pi 4 recomendamos **Piper** con una voz española de calidad `medium` o inferior:
