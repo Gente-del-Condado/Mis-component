@@ -26,10 +26,22 @@ from async_upnp_client.server import (
 from .dlna_services import Connection, Rendering, Transport
 
 DLNA = "dlna"
+DEFAULT_NAME = "JackSignal Audio"
+
+
+def receiver_name(value):
+    """Allow readable Unicode names without XML-invalid control characters."""
+    if not isinstance(value, str):
+        raise ValueError("Invalid receiver name")
+    name = value.strip()
+    if not 1 <= len(name) <= 64 or any(not char.isprintable() for char in name):
+        raise ValueError("Invalid receiver name")
+    return name
 
 
 def settings(value):
     """Use an explicitly selected local IPv4 address for discovery and HTTP."""
+    name = receiver_name(value.get("name", DEFAULT_NAME))
     if not value.get("enabled", False):
         return None
     address = IPv4Address(value["address"])
@@ -38,7 +50,7 @@ def settings(value):
     port = int(value.get("port", 49200))
     if not 1024 <= port <= 65535:
         raise ValueError("Invalid HTTP port")
-    return str(address), port, bool(value.get("discovery", True))
+    return str(address), port, bool(value.get("discovery", True)), name
 
 
 @web.middleware
@@ -210,6 +222,7 @@ class DlnaReceiver:
 
     async def _start(self, address):
         playback, udn = self.playback, self.udn
+        host, port, discovery, name = address
         # Read packaged metadata off the event loop; never duplicate release numbers.
         manifest = json.loads(await asyncio.to_thread(
             Path(__file__).with_name("manifest.json").read_text, encoding="utf-8"
@@ -218,7 +231,7 @@ class DlnaReceiver:
         class Renderer(UpnpServerDevice):
             DEVICE_DEFINITION = DeviceInfo(
                 device_type="urn:schemas-upnp-org:device:MediaRenderer:1",
-                friendly_name="JackSignal Audio",
+                friendly_name=name,
                 manufacturer="JackSignal",
                 manufacturer_url=None,
                 model_description="Receptor exclusivo de audio con prioridades de Alarmo",
@@ -242,7 +255,6 @@ class DlnaReceiver:
                 transport.backend = playback
                 transport.publish()
 
-        host, port, discovery = address
         self.server = AudioServer(
             Renderer, (host, 0), http_port=port, boot_id=int(time.time())
         )
@@ -260,6 +272,7 @@ class DlnaReceiver:
         active = self._settings
         return {
             "running": bool(active),
+            "name": active[3] if active else "—",
             "discovery": bool(active and active[2]),
             "url": f"http://{active[0]}:{active[1]}/description.xml" if active else "—",
             "last_request": self.last_request,

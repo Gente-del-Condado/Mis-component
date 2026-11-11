@@ -79,12 +79,13 @@
       },
       "dlna": {
         "title": "DLNA: network and port",
-        "description": "Choose an IPv4 address on an interface visible to Home Assistant (Ethernet, Wi-Fi or VPN). You can enter another address belonging to this host. For VPNs without multicast, disable SSDP discovery and add http://IP:PORT/description.xml in a sender supporting manual receivers. The VPN must allow connections in both directions and access to the audio URL. A VPN in another container may require a route to the local IP. The receiver has no password: use trusted networks only. Alarmo retains priority.",
+        "description": "Choose an IPv4 address on an interface visible to Home Assistant (Ethernet, Wi-Fi or VPN). You can enter another address belonging to this host. For VPNs without multicast, disable SSDP discovery and add http://IP:PORT/description.xml in a sender supporting manual receivers. The VPN must allow connections in both directions and access to the audio URL. A VPN in another container may require a route to the local IP. The receiver has no password: use trusted networks only. Alarmo retains priority.\n\nChoose a different name per device, e.g. “JackSignal · Living room”. It appears in BubbleUPnP and other DLNA senders, independently of the Home Assistant entity name. Saving restarts the DLNA receiver and may stop its music; refresh the sender device list afterwards. The receiver identifier is preserved.",
         "data": {
           "enabled": "Enable receiver",
           "address": "Listening interface / IPv4",
           "port": "HTTP port",
-          "discovery": "Automatic SSDP discovery (UDP 1900)"
+          "discovery": "Automatic SSDP discovery (UDP 1900)",
+          "name": "Receiver name on the network"
         }
       },
       "overview": {
@@ -154,7 +155,7 @@
       },
       "dlna_status": {
         "title": "DLNA diagnostics",
-        "description": "**Current state** (✓ active / — inactive)\n\n- HTTP receiver: {running}\n- SSDP discovery: {discovery}\n- Description: {url}\n- Audio active: {playback} · Priority: {priority}\n- Last HTTP request (UTC time, IP, method, result): {last_request}\n- Last observed DLNA error: {last_error}\n\nSelect DLNA diagnostics to refresh. Data resets when the integration reloads. Enabled SSDP does not prove the phone receives announcements. The last request may come from a browser rather than a controller. Audio URLs and credentials are not displayed.\n\nUse an app supporting DLNA renderers, such as BubbleUPnP. VPN multicast discovery typically needs additional configuration.",
+        "description": "**Current state** (✓ active / — inactive)\n\n- Advertised name: {name}\n- HTTP receiver: {running}\n- SSDP discovery: {discovery}\n- Description: {url}\n- Audio active: {playback} · Priority: {priority}\n- Last HTTP request (UTC time, IP, method, result): {last_request}\n- Last observed DLNA error: {last_error}\n\nSelect DLNA diagnostics to refresh. Data resets when the integration reloads. Enabled SSDP does not prove the phone receives announcements. The last request may come from a browser rather than a controller. Audio URLs and credentials are not displayed.\n\nUse an app supporting DLNA renderers, such as BubbleUPnP. VPN multicast discovery typically needs additional configuration.",
         "menu_options": {
           "dlna_status": "DLNA diagnostics",
           "dlna": "Configure DLNA",
@@ -176,7 +177,8 @@
       "same_sensor_states": "Opening and closing states must be different.",
       "invalid_sensor_state": "Enter a valid state; unknown and unavailable are reserved for unavailable sensors.",
       "direct_audio": "Could not validate audio. Check the file or URL; video is not supported.",
-      "direct_unavailable": "Could not access the file or start FFprobe/FFmpeg. Check storage and logs."
+      "direct_unavailable": "Could not access the file or start FFprobe/FFmpeg. Check storage and logs.",
+      "dlna_name": "Enter a name of 1–64 characters without line breaks or control characters."
     }
   },
   "selector": {

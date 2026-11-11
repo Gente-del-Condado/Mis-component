@@ -23,7 +23,7 @@ from .const import (
     SENSOR_RULES,
     Priority,
 )
-from .dlna import DLNA, settings
+from .dlna import DEFAULT_NAME, DLNA, receiver_name, settings
 from .direct import uploaded_audio
 from .dlna_media import audio_source, inspect_audio
 from .media import resolve
@@ -73,6 +73,7 @@ class SoundOptions(OptionsFlow):
         player = getattr(self.config_entry, "runtime_data", None)
         values = {key: str(info.get(key, "—")) for key in
                   ("url", "last_request", "last_error")}
+        values["name"] = re.sub(r"([\\`*_{}\[\]()<>#!|])", r"\\\1", str(info.get("name", "—")))
         values.update(
             running="✓" if info.get("running") else "—",
             discovery="✓" if info.get("discovery") else "—",
@@ -261,6 +262,12 @@ class SoundOptions(OptionsFlow):
         options = dict(self.config_entry.options)
         errors = {}
         if user_input is not None:
+            user_input = dict(user_input)
+            try:
+                user_input["name"] = receiver_name(user_input.get("name", DEFAULT_NAME))
+            except ValueError:
+                errors["name"] = "dlna_name"
+        if user_input is not None and not errors:
             try:
                 settings(user_input)
                 receiver = self.hass.data.get(DOMAIN)
@@ -284,6 +291,7 @@ class SoundOptions(OptionsFlow):
                 addresses[address] = f"{adapter['name']} — {address}"
         schema = validation.Schema({
             validation.Required("enabled", default=False): selector.BooleanSelector(),
+            validation.Required("name", default=DEFAULT_NAME): selector.TextSelector(),
             validation.Optional("address"): selector.SelectSelector({
                 "options": [{"value": ip, "label": label} for ip, label in addresses.items()],
                 "custom_value": True,

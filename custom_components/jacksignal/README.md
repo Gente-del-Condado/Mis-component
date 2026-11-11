@@ -130,6 +130,22 @@ Todo envío directo tiene prioridad **P0 (baja)** y pasa por el mismo reproducto
 
 En **Configurar → Diagnóstico DLNA** verás el estado real del receptor, SSDP habilitado, URL de descripción, actividad/prioridad del reproductor, última petición HTTP (UTC, IP, método y resultado) y último error HTTP o de arranque observado. El botón **Diagnóstico DLNA** actualiza la vista. Los datos se reinician al recargar la integración y no incluyen URLs de audio ni credenciales. SSDP habilitado no garantiza que un móvil reciba multicast; una petición HTTP puede proceder de un navegador, no necesariamente de un controlador. BubbleUPnP ya ha sido probado por el usuario con audio en Raspberry Pi 4B por Ethernet y Android por Wi-Fi.
 
+### Nombre del receptor y varias estancias
+
+Desde la versión 0.9.0, **Configurar → DLNA: red y puerto → Nombre del receptor en la red** permite elegir un nombre de 1 a 64 caracteres, como **JackSignal · Salón** o **JackSignal · Cocina**. Se admiten tildes y se conserva el identificador del receptor. Las instalaciones anteriores mantienen **JackSignal Audio** hasta que lo cambies. Guardar reinicia el receptor y puede detener la música recibida por DLNA; actualiza después la lista de dispositivos de BubbleUPnP. El nuevo nombre también aparece en el diagnóstico y en `friendlyName` de `description.xml`.
+
+El nombre DLNA es independiente del nombre de la entidad en Home Assistant. Para identificar el mismo equipo en ambos sitios puedes poner nombres equivalentes. Cada instalación de Home Assistant tiene un único reproductor local JackSignal; varias Raspberry con instalaciones independientes pueden anunciar nombres distintos en la misma red y utilizar el mismo puerto en sus respectivas IP. Gestionar varias salidas remotas desde una sola instalación no está implementado.
+
+### Prueba del diagnóstico, envío y prioridades
+
+1. En **Configurar → Diagnóstico DLNA**, comprueba el receptor HTTP, SSDP y la dirección anunciada. Abre esa dirección desde el móvil y vuelve a pulsar **Diagnóstico DLNA**: aparecerá una petición HTTP reciente. Esto comprueba HTTP; localizar el receptor en BubbleUPnP comprueba además el descubrimiento desde ese móvil.
+2. En **Enviar audio → Subir archivo de audio**, selecciona un MP3 o WAV de 20 segundos. Se valida, se guarda en **Mis medios → jacksignal** y se reproduce con P0. El indicador ✓ confirma la aceptación; comprueba también que se escuche completo.
+3. En **Enviar audio → Reproducir URL de audio**, pega un enlace HTTP(S) directo a un MP3 o una radio accesible desde Home Assistant. Una página web o el enlace del XML DLNA no son audio. Para una prueba local, si ya tienes un audio en `/config/www/prueba.mp3`, su URL habitual es `http://IP_DE_HOME_ASSISTANT:8123/local/prueba.mp3`; adapta protocolo, dirección y puerto a tu instalación. Los archivos de `www` se sirven sin autenticación: utiliza únicamente un audio de prueba que puedas compartir.
+4. Comprueba en **Ver sonidos asignados** que el aviso de Alarmo usado en la prueba tenga prioridad P2 o P3 y un archivo suficientemente largo. Por ejemplo, puedes usar el evento **Alarma desarmada** durante un ciclo normal y controlado de armado/desarmado; no necesitas disparar una intrusión real.
+5. Mientras suena música P0, provoca ese evento: el aviso debe sustituir la música. Mientras dure el aviso, intenta enviar otro archivo o URL: debe rechazarse por prioridad. **Detener solo el envío directo** tampoco debe cortar el aviso. Al terminar, envía de nuevo la música: debe reproducirse. La música interrumpida no se reanuda automáticamente.
+
+La prioridad depende de la regla configurada: un aviso de Alarmo configurado en P0 no tiene preferencia sobre otro audio P0. Una sirena crítica repetitiva activa tiene protección adicional. No cambies temporalmente una regla de seguridad sin restaurarla al terminar la prueba.
+
 ## Si algo no funciona
 
 | Síntoma | Comprobación |

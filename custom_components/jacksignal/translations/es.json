@@ -79,12 +79,13 @@
       },
       "dlna": {
         "title": "DLNA: red y puerto",
-        "description": "Elige una IPv4 de una interfaz visible para Home Assistant (Ethernet, Wi-Fi o VPN). Puedes escribir otra IP del mismo equipo. Para VPN sin multicast, desactiva el descubrimiento SSDP y añade http://IP:PUERTO/description.xml en un emisor que admita receptores manuales. La VPN debe permitir las conexiones en ambos sentidos y el acceso a la URL del audio. Una VPN en otro contenedor puede requerir una ruta a la IP local. El receptor no tiene contraseña: úsalo solo en redes de confianza. Alarmo mantiene su prioridad.",
+        "description": "Elige una IPv4 de una interfaz visible para Home Assistant (Ethernet, Wi-Fi o VPN). Puedes escribir otra IP del mismo equipo. Para VPN sin multicast, desactiva el descubrimiento SSDP y añade http://IP:PUERTO/description.xml en un emisor que admita receptores manuales. La VPN debe permitir las conexiones en ambos sentidos y el acceso a la URL del audio. Una VPN en otro contenedor puede requerir una ruta a la IP local. El receptor no tiene contraseña: úsalo solo en redes de confianza. Alarmo mantiene su prioridad.\n\nElige un nombre distinto por equipo, por ejemplo «JackSignal · Salón». Aparece en BubbleUPnP y otros emisores DLNA. No cambia el nombre de la entidad de Home Assistant. Guardarlo reinicia el receptor DLNA y puede detener su música; después actualiza la lista de dispositivos del emisor. El identificador del receptor se conserva.",
         "data": {
           "enabled": "Activar receptor",
           "address": "Interfaz / IPv4 de escucha",
           "port": "Puerto HTTP",
-          "discovery": "Descubrimiento automático SSDP (UDP 1900)"
+          "discovery": "Descubrimiento automático SSDP (UDP 1900)",
+          "name": "Nombre del receptor en la red"
         }
       },
       "overview": {
@@ -154,7 +155,7 @@
       },
       "dlna_status": {
         "title": "Diagnóstico DLNA",
-        "description": "**Estado actual** (✓ activo / — inactivo)\n\n- Receptor HTTP: {running}\n- Descubrimiento SSDP: {discovery}\n- Descripción: {url}\n- Audio activo: {playback} · Prioridad: {priority}\n- Última petición HTTP (hora UTC, IP, método, resultado): {last_request}\n- Último error DLNA observado: {last_error}\n\nPulsa Diagnóstico DLNA para actualizar. Los datos se reinician al recargar la integración. SSDP activo indica que está habilitado, no demuestra que el móvil reciba los anuncios. La última petición puede ser del navegador y no necesariamente de un emisor. No se muestran URLs de audio ni credenciales.\n\nUsa un emisor compatible con receptores DLNA, como BubbleUPnP. Las VPN normalmente requieren configuración adicional para el descubrimiento multicast.",
+        "description": "**Estado actual** (✓ activo / — inactivo)\n\n- Nombre anunciado: {name}\n- Receptor HTTP: {running}\n- Descubrimiento SSDP: {discovery}\n- Descripción: {url}\n- Audio activo: {playback} · Prioridad: {priority}\n- Última petición HTTP (hora UTC, IP, método, resultado): {last_request}\n- Último error DLNA observado: {last_error}\n\nPulsa Diagnóstico DLNA para actualizar. Los datos se reinician al recargar la integración. SSDP activo indica que está habilitado, no demuestra que el móvil reciba los anuncios. La última petición puede ser del navegador y no necesariamente de un emisor. No se muestran URLs de audio ni credenciales.\n\nUsa un emisor compatible con receptores DLNA, como BubbleUPnP. Las VPN normalmente requieren configuración adicional para el descubrimiento multicast.",
         "menu_options": {
           "dlna_status": "Diagnóstico DLNA",
           "dlna": "Configurar DLNA",
@@ -176,7 +177,8 @@
       "same_sensor_states": "Apertura y cierre deben tener estados diferentes.",
       "invalid_sensor_state": "Escribe un estado válido; unknown y unavailable se reservan para desconexiones.",
       "direct_audio": "No se pudo validar el audio. Comprueba el archivo o la URL; no se admiten vídeos.",
-      "direct_unavailable": "No se pudo acceder al archivo o iniciar FFprobe/FFmpeg. Comprueba el almacenamiento y los registros."
+      "direct_unavailable": "No se pudo acceder al archivo o iniciar FFprobe/FFmpeg. Comprueba el almacenamiento y los registros.",
+      "dlna_name": "Escribe un nombre de 1 a 64 caracteres, sin saltos de línea ni caracteres de control."
     }
   },
   "selector": {
