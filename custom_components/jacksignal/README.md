@@ -12,10 +12,9 @@ Usa **una sola vía para gestionar las actualizaciones** de la integración.
 | --- | --- | --- |
 | Tienda de aplicaciones de Home Assistant OS | [Mis-app](https://github.com/Gente-del-Condado/Mis-app) | **Instalador de JackSignal**, que copia la integración al iniciarlo |
 | HACS / Marketplace, como repositorio personalizado de integración | [jacksignal-ha](https://github.com/Gente-del-Condado/jacksignal-ha) | La integración directamente |
-| Private Git Manager | [Mis-component](https://github.com/Gente-del-Condado/Mis-component), carpeta `custom_components/jacksignal` | La integración directamente |
 | Manual | [jacksignal-ha](https://github.com/Gente-del-Condado/jacksignal-ha) | Copia de `custom_components/jacksignal` a `/config/custom_components/jacksignal` |
 
-El repositorio `Mis-component` agrupa varias integraciones; para HACS utiliza **jacksignal-ha**. Añadir un repositorio personalizado no significa que JackSignal esté incluido en el catálogo predeterminado de HACS.
+Para instalar desde HACS / Marketplace utiliza **jacksignal-ha**. Añadir este repositorio personalizado no significa que JackSignal esté incluido en el catálogo predeterminado.
 
 ### Con Instalador de JackSignal
 
@@ -30,7 +29,7 @@ Para actualizar: actualiza la aplicación, vuelve a pulsar **Iniciar**, comprueb
 
 Añade `https://github.com/Gente-del-Condado/jacksignal-ha` como repositorio personalizado de categoría **Integración** e instálalo. En una primera instalación, si JackSignal no se había cargado antes, Marketplace puede abrir su configuración inmediatamente: JackSignal dispone de configuración gráfica y no necesita un reinicio previo en ese caso.
 
-Si ya estaba cargado o estás actualizando, sigue el aviso de reinicio que muestre Home Assistant. No confundas esta instalación con **Instalador de JackSignal**, que copia archivos y sigue requiriendo iniciar el instalador y reiniciar Home Assistant. Para una copia manual o un gestor antiguo, reinicia después de instalar el código.
+Si ya estaba cargado o estás actualizando, sigue el aviso de reinicio que muestre Home Assistant. No confundas esta instalación con **Instalador de JackSignal**, que copia archivos y sigue requiriendo iniciar el instalador y reiniciar Home Assistant. Si eliges la instalación manual, reinicia después de copiar el código.
 
 Marketplace ya no administra AppDaemon ni Python Scripts. JackSignal es una **integración**, no uno de esos tipos, por lo que ese cambio no le afecta. [Funcionamiento oficial de Marketplace](https://contributors.home-assistant.io/marketplace/how-it-works/).
 
