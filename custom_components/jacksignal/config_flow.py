@@ -64,8 +64,11 @@ class SoundOptions(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
-            step_id="init", menu_options=["overview", "alarm", "event", "sensor", "speech", "preview", "direct", "dlna", "dlna_status"],
+            step_id="init", menu_options=["manage", "overview", "alarm", "event", "sensor", "speech", "preview", "direct", "dlna", "dlna_status"],
         )
+
+    async def async_step_manage(self, user_input=None):
+        return self.async_show_menu(step_id="manage", menu_options=["init"])
 
     async def async_step_dlna_status(self, user_input=None):
         receiver = self.hass.data.get(DOMAIN)
@@ -146,6 +149,7 @@ class SoundOptions(OptionsFlow):
         errors, status = {}, ""
         if user_input is not None:
             rule = {key: value for key, value in user_input.items() if key != "operation"}
+            rule.setdefault("enabled", current.get("enabled", True))
             operation = user_input.get("operation", "save")
             if operation == "delete":
                 rules.pop(self._key, None)
@@ -172,6 +176,7 @@ class SoundOptions(OptionsFlow):
                 return self.async_create_entry(data=options)
         schema = validation.Schema({
             validation.Optional("engine"): selector.EntitySelector({"domain": "tts"}),
+            validation.Required("enabled", default=current.get("enabled", True)): selector.BooleanSelector(),
             validation.Optional("before", default=""): selector.TextSelector(),
             validation.Optional("after", default=""): selector.TextSelector(),
             validation.Required("unit", default=True): selector.BooleanSelector(),
@@ -211,7 +216,8 @@ class SoundOptions(OptionsFlow):
             label = unquote(media.removeprefix(LOCAL_PREFIX))
             priority = Priority[rule["priority"].upper()].value
             repeat = " ↻" if rule.get("repeat") else ""
-            return f"{plain(label)} · P{priority}{repeat}"
+            disabled = " · " + translated("sensor_summary", "paused") if not rule.get("enabled", True) else ""
+            return f"{plain(label)} · P{priority}{repeat}{disabled}"
 
         panel_id = options.get(ALARM)
         panel = self.hass.states.get(panel_id) if panel_id else None
@@ -365,6 +371,7 @@ class SoundOptions(OptionsFlow):
         closed_state = current.get("closed_state", CLOSED_STATES.get(open_state, suggested_closed))
         if user_input is not None:
             user_input = dict(user_input)
+            user_input.setdefault("enabled", current.get("enabled", True))
             if section == SENSOR_RULES:
                 user_input["open_state"] = user_input.get("open_state", open_state).strip().casefold()
                 user_input["closed_state"] = user_input.get("closed_state", closed_state).strip().casefold()
@@ -420,6 +427,7 @@ class SoundOptions(OptionsFlow):
                 validation.Required("priority", default=current.get("priority", default_priority.name.lower())): priority_selector(),
                 validation.Required("failed_to_arm", default=current.get("failed_to_arm", True)): selector.BooleanSelector(),
             }
+        fields[validation.Required("enabled", default=current.get("enabled", True))] = selector.BooleanSelector()
         return self.async_show_form(
             step_id=step,
             data_schema=self.add_suggested_values_to_schema(validation.Schema(fields), user_input or current),

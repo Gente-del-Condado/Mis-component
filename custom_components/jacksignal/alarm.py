@@ -62,7 +62,7 @@ class AlarmSounds:
         entity_id = event.data["entity_id"]
         async with self._lock:
             rule = self.sensor_rules.get(entity_id)
-            if not rule:
+            if not rule or not rule.get("enabled", True):
                 return
             open_state = rule.get("open_state", "on")
             closed_state = rule.get("closed_state", CLOSED_STATES.get(open_state))
@@ -167,6 +167,7 @@ class AlarmSounds:
                     if entity_id in self.sensor_rules
                     and self.sensor_rules[entity_id].get("failed_to_arm", True)
                     and self.sensor_rules[entity_id].get("sound")
+                    and self.sensor_rules[entity_id].get("enabled", True)
                 ]
                 if matches:
                     rule = max(matches, key=lambda item: Priority[item["priority"].upper()])
@@ -176,6 +177,8 @@ class AlarmSounds:
                 await self._play(rule, "failed_to_arm")
 
     async def _play(self, rule: dict, kind: str) -> None:
+        if not rule.get("enabled", True):
+            return
         priority = Priority[rule["priority"].upper()]
         try:
             sound = await resolve(self.hass, rule["sound"]["media_content_id"], None)

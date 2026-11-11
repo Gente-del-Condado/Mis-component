@@ -14,6 +14,7 @@ from .const import DOMAIN, PLATFORMS, Priority
 from .dlna import DlnaReceiver
 from .media import error, resolve
 from .playback import Playback
+from .panel import async_setup_panel
 from .selectors import media_selector, priority_selector, validation
 from .speech import SensorSpeech
 
@@ -85,6 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
         speech.update_options(updated.options)
 
     entry.async_on_unload(entry.add_update_listener(update_options))
+    await async_setup_panel(hass, entry)
     await alarm.restore_siren()
     return True
 

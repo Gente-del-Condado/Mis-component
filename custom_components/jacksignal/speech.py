@@ -94,6 +94,8 @@ class SensorSpeech:
         rule = self.rules.get(sensor)
         if self._closed or rule is None:
             raise error("speech_rule_missing")
+        if not rule.get("enabled", True):
+            raise error("rule_disabled")
         generation = self._generation
         state = self.hass.states.get(sensor)
         sound = await audio_for(self.hass, state, rule)
@@ -106,7 +108,7 @@ class SensorSpeech:
         new = event.data.get("new_state")
         async with self._lock:
             rule = self.rules.get(sensor)
-            if self._closed or not rule or not matches(event.data.get("old_state"), new, rule):
+            if self._closed or not rule or not rule.get("enabled", True) or not matches(event.data.get("old_state"), new, rule):
                 return
             if self.hass.states.get(sensor) != new:
                 return

@@ -21,10 +21,11 @@
           "sensor": "Assign sounds to a sensor",
           "preview": "Test a sound on the jack",
           "dlna": "DLNA: network and port",
-          "overview": "View sound assignments",
+          "overview": "Assignment summary (text)",
           "speech": "Configure sensor speech",
           "direct": "Send audio",
-          "dlna_status": "DLNA diagnostics"
+          "dlna_status": "DLNA diagnostics",
+          "manage": "Manage alerts"
         }
       },
       "alarm": {
@@ -46,7 +47,8 @@
         "data": {
           "sound": "Sound",
           "priority": "Priority",
-          "repeat": "Repeat while the alarm is triggered"
+          "repeat": "Repeat while the alarm is triggered",
+          "enabled": "Alert enabled (disabling keeps its configuration)"
         }
       },
       "sensor": {
@@ -67,7 +69,8 @@
           "close_sound": "CLOSING · Sound (select another or the same file)",
           "on_close": "CLOSING · When to play",
           "open_state": "OPENING · Sensor state",
-          "closed_state": "CLOSING · Sensor state"
+          "closed_state": "CLOSING · Sensor state",
+          "enabled": "Alert enabled (disabling keeps its configuration)"
         }
       },
       "preview": {
@@ -118,7 +121,8 @@
           "threshold": "Numeric threshold (above/below only)",
           "cooldown": "Minimum interval between alerts (seconds)",
           "priority": "Priority",
-          "operation": "Action on submit"
+          "operation": "Action on submit",
+          "enabled": "Alert enabled (disabling keeps its configuration)"
         }
       },
       "direct": {
@@ -160,6 +164,13 @@
           "dlna_status": "DLNA diagnostics",
           "dlna": "Configure DLNA",
           "direct": "Send audio",
+          "init": "Back"
+        }
+      },
+      "manage": {
+        "title": "Manage alerts",
+        "description": "[Open Manage alerts](/jacksignal). Administrators can also open JackSignal from the sidebar. Search, filter, edit, test or disable rules without deleting them. Tests use P0 and respect Alarmo priorities. The panel is in Spanish.",
+        "menu_options": {
           "init": "Back"
         }
       }
@@ -211,7 +222,8 @@
       "options": {
         "failed_to_arm": "When preventing arming",
         "disabled": "No active triggers",
-        "close": "Closing / deactivation"
+        "close": "Closing / deactivation",
+        "paused": "Disabled"
       }
     },
     "on_close": {
@@ -297,6 +309,9 @@
     },
     "higher_priority": {
       "message": "Not played: a higher-priority alert or protected siren is active. Wait until it finishes or stop playback from Home Assistant."
+    },
+    "rule_disabled": {
+      "message": "This alert is disabled. Enable it in Manage alerts."
     }
   }
 }

@@ -21,10 +21,11 @@
           "sensor": "Asignar sonidos a un sensor",
           "preview": "Probar un sonido por el jack",
           "dlna": "DLNA: red y puerto",
-          "overview": "Ver sonidos asignados",
+          "overview": "Resumen de asignaciones (texto)",
           "speech": "Configurar voz de un sensor",
           "direct": "Enviar audio",
-          "dlna_status": "Diagnóstico DLNA"
+          "dlna_status": "Diagnóstico DLNA",
+          "manage": "Gestionar avisos"
         }
       },
       "alarm": {
@@ -46,7 +47,8 @@
         "data": {
           "sound": "Sonido",
           "priority": "Prioridad",
-          "repeat": "Repetir mientras la alarma esté disparada"
+          "repeat": "Repetir mientras la alarma esté disparada",
+          "enabled": "Aviso activado (desactivar conserva la configuración)"
         }
       },
       "sensor": {
@@ -67,7 +69,8 @@
           "close_sound": "CIERRE · Sonido (selecciona otro o el mismo archivo)",
           "on_close": "CIERRE · Cuándo avisar",
           "open_state": "APERTURA · Estado del sensor",
-          "closed_state": "CIERRE · Estado del sensor"
+          "closed_state": "CIERRE · Estado del sensor",
+          "enabled": "Aviso activado (desactivar conserva la configuración)"
         }
       },
       "preview": {
@@ -118,7 +121,8 @@
           "threshold": "Umbral numérico (solo superar/bajar)",
           "cooldown": "Intervalo mínimo entre avisos (segundos)",
           "priority": "Prioridad",
-          "operation": "Qué hacer al enviar"
+          "operation": "Qué hacer al enviar",
+          "enabled": "Aviso activado (desactivar conserva la configuración)"
         }
       },
       "direct": {
@@ -160,6 +164,13 @@
           "dlna_status": "Diagnóstico DLNA",
           "dlna": "Configurar DLNA",
           "direct": "Enviar audio",
+          "init": "Volver"
+        }
+      },
+      "manage": {
+        "title": "Gestionar avisos",
+        "description": "[Abrir el panel Gestionar avisos](/jacksignal). También aparece como JackSignal en la barra lateral para administradores.\n\nBusca, filtra, edita y prueba avisos. Activa o desactiva reglas sin borrar sus sonidos. Las pruebas usan P0 y respetan las prioridades de Alarmo. El panel está en español.",
+        "menu_options": {
           "init": "Volver"
         }
       }
@@ -211,7 +222,8 @@
       "options": {
         "failed_to_arm": "Si impide armar",
         "disabled": "Sin disparadores activos",
-        "close": "Cierre / desactivación"
+        "close": "Cierre / desactivación",
+        "paused": "Desactivado"
       }
     },
     "on_close": {
@@ -297,6 +309,9 @@
     },
     "higher_priority": {
       "message": "No se ha reproducido: hay un aviso de mayor prioridad o una sirena protegida. Espera a que termine o detén la reproducción desde Home Assistant."
+    },
+    "rule_disabled": {
+      "message": "Este aviso está desactivado. Actívalo desde Gestionar avisos."
     }
   }
 }
