@@ -32,7 +32,8 @@ def rule_defaults(hass, kind, key):
     if kind == "alarm":
         return {"enabled": True, "priority": DEFAULT_PRIORITIES[key].name.lower(), "repeat": key == "triggered"}
     if kind == "speech":
-        return {"enabled": True, "priority": "low", "before": "", "after": "", "unit": True, "trigger": "manual", "cooldown": 60, "speed": 1.0, "use_defaults": True}
+        binary = key.startswith("binary_sensor.")
+        return {"enabled": True, "priority": "low", "before": "", "after": "", "unit": True, "trigger": "change" if binary else "manual", "cooldown": 0 if binary else 60, "speed": 1.0, "use_defaults": True}
     from .config_flow import suggested_sensor_states
     opened, closed = suggested_sensor_states(hass.states.get(key))
     return {"enabled": True, "priority": "high", "open_state": opened, "closed_state": closed,
@@ -55,6 +56,8 @@ def selected_rule(hass, entry, kind, key):
     result.update(deepcopy(existing or {}))
     if kind == "speech" and existing:
         result["use_defaults"] = existing.get("use_defaults", False)
+        result["trigger"] = existing.get("trigger", "manual")
+        result["cooldown"] = existing.get("cooldown", 60)
     if kind == "sensor" and existing:
         result["closed_state"] = existing.get("closed_state", CLOSED_STATES.get(result["open_state"], "off"))
     return result
@@ -86,8 +89,14 @@ def playback_status(entry):
             "source": "Prueba del panel" if getattr(player, "owner", None) == "panel_preview" else "Aviso o reproducción externa"}
 
 
+def speech_status(hass):
+    manager = hass.data.get("jacksignal_speech")
+    return {key: manager.diagnostic(key) for key in manager.rules} if manager else {}
+
+
 def snapshot(hass, entry):
     rows = []
+    voice_status = speech_status(hass)
     for kind, section in SECTIONS.items():
         rules = entry.options.get(section, {})
         if kind == "alarm":
@@ -103,6 +112,7 @@ def snapshot(hass, entry):
             rows.append({"kind": kind, "key": key, "name": EVENT_NAMES[key] if kind == "alarm" else state.name if state else key,
                          "state": state.state if state else None, "unit": state.attributes.get("unit_of_measurement", "") if state else "", "configured": configured,
                          "status": "unconfigured" if not configured else "configured" if enabled else "disabled",
+                         "speech_status": voice_status.get(key, ""),
                          "suggested_state_labels": suggested_state_labels(state) if kind == "speech" else {},
                          "rule": rule, "effective": effective_rule(hass, rule, entry.options) if kind == "speech" else rule})
     panel = entry.options.get(ALARM)
@@ -240,7 +250,7 @@ async def handle(hass, entry, msg):
     if action == "tts_info":
         return voice_info(hass, msg.get("engine", ""), msg.get("language"), msg.get("voice"))
     if action == "status":
-        return playback_status(entry)
+        return {**playback_status(entry), "speech": speech_status(hass)}
     if action == "batch":
         if msg.get("revision") != revision(entry.options):
             raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")

@@ -160,6 +160,7 @@ class SensorSpeech:
         self._generation = 0
         self._closed = False
         self._last = {}
+        self.last_result = {}
         self._lock = asyncio.Lock()
 
     def start(self):
@@ -180,6 +181,7 @@ class SensorSpeech:
         self.options = options
         self.rules = options.get(SPEECH_RULES, {})
         self._last.clear()
+        self.last_result.clear()
         self.start()
 
     async def say(self, sensor):
@@ -195,24 +197,55 @@ class SensorSpeech:
             return False
         return await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
 
+    def diagnostic(self, sensor):
+        rule = self.rules.get(sensor, {})
+        if not rule.get("enabled", True):
+            return "Voz desactivada. La prueba manual sí puede sonar."
+        if rule.get("trigger", "manual") == "manual":
+            return "Solo manual: no habla al cambiar el sensor. Selecciona cuándo hablar."
+        return self.last_result.get(sensor, "Automático preparado. Esperando un cambio que cumpla la condición.")
+
+    def _current(self, sensor, expected):
+        current = self.hass.states.get(sensor)
+        # Attribute-only updates (battery, signal, etc.) must not cancel TTS.
+        return current is not None and current.state == expected.state and current.last_changed == expected.last_changed
+
     async def _changed(self, event):
         sensor = event.data["entity_id"]
         new = event.data.get("new_state")
+        old = event.data.get("old_state")
         async with self._lock:
             rule = self.rules.get(sensor)
-            if self._closed or not rule or not rule.get("enabled", True) or not matches(event.data.get("old_state"), new, rule):
+            if self._closed or not rule or not rule.get("enabled", True):
                 return
-            if self.hass.states.get(sensor) != new:
+            if old is not None and new is not None and old.state == new.state:
+                return
+            if not matches(old, new, rule):
+                self.last_result[sensor] = "Cambio omitido: estado no disponible o condición de voz no cumplida."
+                return
+            if not self._current(sensor, new):
+                self.last_result[sensor] = "Cambio omitido: el sensor ya ha cambiado de nuevo."
                 return
             now = time.monotonic()
-            if now - self._last.get(sensor, -math.inf) < rule.get("cooldown", 60):
+            remaining = rule.get("cooldown", 60) - (now - self._last.get(sensor, -math.inf))
+            if remaining > 0:
+                self.last_result[sensor] = f"Cambio omitido por intervalo mínimo: quedaban {math.ceil(remaining)} segundos. No se pone en cola."
                 return
-            self._last[sensor] = now
             generation = self._generation
+            self.last_result[sensor] = "Generando voz para el último cambio del sensor…"
             try:
                 sound = await audio_for(self.hass, new, effective_rule(self.hass, rule, self.options))
-                if generation != self._generation or self.hass.states.get(sensor) != new:
+                if generation != self._generation:
                     return
-                await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+                if not self._current(sensor, new):
+                    self.last_result[sensor] = "Voz descartada: el sensor cambió de estado mientras se generaba el audio."
+                    return
+                accepted = await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+                if accepted:
+                    self._last[sensor] = time.monotonic()
+                    self.last_result[sensor] = "Último aviso automático enviado al reproductor."
+                else:
+                    self.last_result[sensor] = "Voz bloqueada por un audio de mayor prioridad o una sirena protegida."
             except (HomeAssistantError, OSError, ValueError) as err:
+                self.last_result[sensor] = "Error al generar o reproducir voz. Revisa el motor TTS y los registros de JackSignal."
                 _LOGGER.warning("Sensor speech failed for %s (%s)", sensor, type(err).__name__)

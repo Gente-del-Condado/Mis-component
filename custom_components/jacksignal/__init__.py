@@ -66,6 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
     alarm.start()
     entry.async_on_unload(alarm.close)
     speech = SensorSpeech(hass, playback, entry.options)
+    hass.data["jacksignal_speech"] = speech
+    entry.async_on_unload(lambda: hass.data.pop("jacksignal_speech", None))
     speech.start()
     entry.async_on_unload(speech.close)
 

@@ -12,6 +12,17 @@ function node(tag, text, attrs = {}) {
 function soundName(selection) {
   return selection?.media_content_id?.replace('media-source://media_source/', '') || 'Sin sonido asignado';
 }
+function noticeGroups(rows,kind,query,filter) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (kind === 'sensor' ? row.kind === 'alarm' : row.kind !== kind) continue;
+    if (!groups.has(row.key)) groups.set(row.key,[]);
+    groups.get(row.key).push(row);
+  }
+  return [...groups.values()].filter(group =>
+    group.some(row => filter === 'all' || row.status === filter) &&
+    group.some(row => fold([row.name,row.key,soundName(row.rule.sound),soundName(row.rule.close_sound),row.rule.before,row.rule.after,...Object.values(row.rule.state_labels || {})].join(' ')).includes(query)));
+}
 class JackSignalPanel extends HTMLElement {
   constructor() {
     super();
@@ -30,7 +41,8 @@ class JackSignalPanel extends HTMLElement {
         search{display:block;margin:20px 0} .filters{display:flex;flex-wrap:wrap;gap:16px;align-items:end}.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;min-width:0}.filters .field{flex:1;min-width:190px;margin:0}
         input:not([type=checkbox]),select{width:100%;min-height:48px;padding:10px;border:1px solid var(--secondary-text-color,#64717f);border-radius:8px;background:var(--card-background-color,#fff)}
         .check{display:flex;align-items:center;gap:10px;min-height:48px;margin:8px 0}input[type=checkbox]{width:22px;height:22px;accent-color:var(--primary-color,#00789a)}
-        #cards{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}li{min-width:0}article{height:100%;padding:20px;border:1px solid var(--divider-color,#d5dae0);border-radius:14px;background:var(--card-background-color,#fff);overflow-wrap:anywhere}
+        #cards{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}li{min-width:0}article{padding:20px;border:1px solid var(--divider-color,#d5dae0);border-radius:14px;background:var(--card-background-color,#fff);overflow-wrap:anywhere}
+        #cards.compact{grid-template-columns:1fr}.notice-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}#cards header{flex-wrap:wrap;border-radius:12px;margin-bottom:10px}h4{margin:0 0 8px}
         .badge{display:inline-block;font-size:.85rem;border:1px solid var(--divider-color,#b7c1cb);border-radius:20px;padding:3px 10px;margin:8px 0}.summary{min-height:75px}.warning{border-inline-start:3px solid var(--warning-color,#a56b00);padding-inline-start:10px;font-size:.9rem}.actions{margin-top:16px}
         #message{min-height:30px;padding:6px 0}.empty{padding:32px;text-align:center;border:1px dashed var(--divider-color,#b0bac4);border-radius:12px}
         dialog{width:min(620px,calc(100% - 24px));max-height:90dvh;padding:24px;border:1px solid var(--divider-color,#b0bac4);border-radius:16px;color:var(--primary-text-color,#17212b);background:var(--card-background-color,#fff)}
@@ -45,7 +57,7 @@ class JackSignalPanel extends HTMLElement {
       <main lang="es">
         <div class="tools"><p id="panel-info" class="muted">Cargando configuración…</p><div class="actions"><a class="button" href="/config/integrations/integration/jacksignal">Configuración y audio</a><button id="refresh" type="button">Actualizar</button></div></div>
         <div class="overview" aria-label="Resumen de avisos"><div class="metric"><strong id="count-active">—</strong>Activados</div><div class="metric"><strong id="count-disabled">—</strong>Desactivados</div><div class="metric"><strong id="count-empty">—</strong>Sin configurar</div><div class="metric" id="live">Consultando reproducción…</div></div>
-        <div class="nav" role="group" aria-label="Tipo de aviso"><button type="button" data-kind="sensor" aria-pressed="true">Sensores</button><button type="button" data-kind="alarm" aria-pressed="false">Alarmo</button><button type="button" data-kind="speech" aria-pressed="false">Voz</button></div>
+        <div class="nav" role="group" aria-label="Tipo de aviso"><button type="button" data-kind="sensor" aria-pressed="true">Sensores</button><button type="button" data-kind="alarm" aria-pressed="false">Alarmo</button><button type="button" data-kind="speech" aria-pressed="false">Solo voz</button></div>
         <section id="voice-general" class="tip" hidden><h2>Voz predeterminada</h2><p id="voice-general-info"></p><div class="actions"><button id="voice-defaults" type="button">Configurar voz general</button><button id="piper-prepare" type="button">Preparar Piper</button><a class="button" href="/config/integrations/dashboard">Conectar Wyoming</a><a id="piper-app" class="button" href="/hassio/addon/core_piper/info">Abrir Piper</a></div><p id="piper-status" role="status"></p></section>
         <search aria-label="Buscar avisos"><div class="filters"><div class="field"><label for="query">Buscar por nombre, sensor o sonido</label><input id="query" type="search" name="query" placeholder="Por ejemplo, ventana del salón" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="filter">Mostrar</label><select id="filter" name="filter"><option value="all">Todos</option><option value="configured">Configurados y activados</option><option value="unconfigured">Sin configurar</option><option value="disabled">Desactivados</option></select></div></div></search>
         <div class="actions"><button id="compact" type="button" aria-pressed="true">Vista compacta</button><button id="select-visible" type="button">Seleccionar configurados visibles</button><button id="clear-selection" type="button">Quitar selección</button></div>
@@ -70,7 +82,7 @@ class JackSignalPanel extends HTMLElement {
     this.$('cards').classList.add('compact');
     this.$('compact').addEventListener('click', () => {const compact = this.$('cards').classList.toggle('compact'); this.$('compact').setAttribute('aria-pressed',String(compact));});
     this.$('clear-selection').addEventListener('click', () => {this.selected.clear(); this.renderList();});
-    this.$('select-visible').addEventListener('click', () => {for (const row of this.visibleRows || []) if (row.configured && this.selected.size < 200) this.selected.add(row.key); this.renderList();});
+    this.$('select-visible').addEventListener('click', () => {for (const row of this.visibleRows || []) if (row.configured && this.selected.size < 200) this.selected.add(`${row.kind}:${row.key}`); this.renderList();});
     this.$('voice-defaults').addEventListener('click', () => this.editDefaults());
     this.$('piper-prepare').addEventListener('click', () => this.preparePiper());
     this.$('batch-edit').addEventListener('click', () => this.editBatch());
@@ -95,6 +107,9 @@ class JackSignalPanel extends HTMLElement {
   }
   renderStatus(status) {
     if (!status) return;
+    for (const el of this.shadowRoot.querySelectorAll('[data-speech-status]')) {
+      if (status.speech?.[el.dataset.speechStatus]) el.textContent = status.speech[el.dataset.speechStatus];
+    }
     this.$('live').textContent = status.active ? `${status.paused ? 'En pausa' : 'Reproduciendo'} · ${labels[status.priority]} · ${status.source}` : 'En reposo · Listo para reproducir';
   }
   selectionStatus() {
@@ -131,7 +146,7 @@ class JackSignalPanel extends HTMLElement {
   renderList() {
     if (!this.data) return;
     this.renderStatus(this.data.playback);
-    this.$('voice-general').hidden = this.kind !== 'speech';
+    this.$('voice-general').hidden = this.kind === 'alarm';
     const general = this.data.voice_defaults || {speed:1};
     const engineLabel = this.data.engines.find(item => item.value === general.engine)?.label;
     this.$('voice-general-info').textContent = `${engineLabel || 'Sin motor general disponible'} · ${general.language || 'Automático: preferir español'} · ${Number(general.speed).toLocaleString('es')}×. ${this.data.piper_engines?.length ? 'Piper está conectado mediante Wyoming.' : 'No se ha detectado un motor Piper conectado. Puede faltar instalarlo o añadir Wyoming.'}`;
@@ -143,30 +158,35 @@ class JackSignalPanel extends HTMLElement {
     this.$('panel-info').textContent = this.data.alarm ? `Panel vinculado: ${this.data.alarm}${this.data.alarm_available ? '' : ' · No disponible'}` : 'Sin panel Alarmo vinculado. Los avisos de sensores en modo «Siempre» funcionan igualmente.';
     this.shadowRoot.querySelectorAll('[data-kind]').forEach(btn => btn.setAttribute('aria-pressed',String(btn.dataset.kind === this.kind)));
     const query = fold(this.$('query').value), filter = this.$('filter').value;
-    const rows = this.data.rows.filter(row => row.kind === this.kind && (filter === 'all' || row.status === filter) && fold([row.name,row.key,soundName(row.rule.sound),soundName(row.rule.close_sound),row.rule.before,row.rule.after].join(' ')).includes(query));
-    this.$('results').textContent = `${rows.length} ${rows.length === 1 ? 'aviso' : 'avisos'}`;
-    this.visibleRows = rows.slice(0,this.limit);
-    const visible = new Set(rows.slice(0,this.limit).map(row => `${row.kind}:${row.key}`));
+    const groups = noticeGroups(this.data.rows,this.kind,query,filter);
+    this.$('results').textContent = `${groups.length} ${this.kind === 'alarm' ? (groups.length === 1 ? 'evento' : 'eventos') : (groups.length === 1 ? 'sensor' : 'sensores')}`;
+    this.visibleRows = groups.slice(0,this.limit).flat();
+    const visible = new Set(groups.slice(0,this.limit).map(group => `${this.kind}:${group[0].key}`));
     for (const [key,card] of this.cards) card.hidden = !visible.has(key);
-    for (const row of rows.slice(0,this.limit)) {
-      const id = `${row.kind}:${row.key}`;
-      let card = this.cards.get(id);
-      if (!card) {
-        card = node('li',null); card.append(node('article',null));
-        this.cards.set(id,card); this.$('cards').append(card);
-      }
+    for (const group of groups.slice(0,this.limit)) {
+      const cardId = `${this.kind}:${group[0].key}`;
+      let card = this.cards.get(cardId);
+      if (!card) {card = node('li'); this.cards.set(cardId,card); this.$('cards').append(card);}
       card.hidden = false;
-      // Keep the invoker button attached while a native dialog is open.
-      if (this.dialog.open && this.editing?.key === row.key && this.editing.kind === row.kind) continue;
-      const article = card.firstChild; article.replaceChildren();
+      if (this.dialog.open && this.editing?.key === group[0].key) continue;
+      card.replaceChildren();
+      const heading = node('header'); heading.append(node('h3',group[0].name),node('span',group[0].key,{class:'muted id'}));card.append(heading);
+      const file = group.find(row => row.kind === 'sensor'), voice = group.find(row => row.kind === 'speech');
+      if (file?.configured && file.rule.enabled && voice?.configured && voice.rule.enabled && voice.rule.trigger !== 'manual' && [file.rule.on_open,file.rule.on_close].some(mode => mode !== 'never')) {
+        card.append(node('p','Audio y voz pueden responder al mismo cambio. El audio de mayor prioridad puede impedir la voz. Desactiva el que no quieras usar; la prioridad de Alarmo se conserva.',{class:'warning'}));
+      }
+      const notices = node('div',null,{class:'notice-types'});card.append(notices);
+      for (const row of group) {
+      const id = `${row.kind}:${row.key}`;
+      const article = node('article'); notices.append(article);
       if (row.configured) {
         const label = node('label',null,{class:'check selection',for:`select-${id}`}), check = node('input',null,{type:'checkbox',id:`select-${id}`,name:`select-${id}`});
-        check.checked = this.selected.has(row.key); check.disabled = this.busy;
-        check.addEventListener('change', () => {if(check.checked && this.selected.size < 200) this.selected.add(row.key); else {this.selected.delete(row.key); check.checked=false;} this.selectionStatus();});
-        label.append(check,node('span',`Seleccionar ${row.name}`)); article.append(label);
+        check.checked = this.selected.has(`${row.kind}:${row.key}`); check.disabled = this.busy;
+        check.addEventListener('change', () => {if(check.checked && this.selected.size < 200) this.selected.add(`${row.kind}:${row.key}`); else {this.selected.delete(`${row.kind}:${row.key}`); check.checked=false;} this.selectionStatus();});
+        label.append(check,node('span',`Seleccionar ${row.kind === 'speech' ? 'voz' : 'audio'} de ${row.name}`)); article.append(label);
       }
-      article.append(node('h3',row.name),node('div',row.key,{class:'muted id'}));
-      article.append(node('span',({configured:'Activado',disabled:'Desactivado',unconfigured:'Sin configurar'})[row.status],{class:'badge'}));
+      article.append(node('h4',row.kind === 'sensor' ? 'Audio de archivo' : row.kind === 'speech' ? 'Voz del sensor' : 'Aviso de Alarmo'));
+      article.append(node('span',row.kind === 'speech' && row.configured && row.rule.enabled && row.rule.trigger === 'manual' ? 'Activado · Solo manual' : ({configured:'Activado',disabled:'Desactivado',unconfigured:'Sin configurar'})[row.status],{class:'badge'}));
       if (row.kind !== 'alarm') {
         let state = row.state ?? 'No disponible';
         if (row.kind === 'sensor') state = row.state?.toLowerCase() === row.rule.open_state ? 'Abierto / activado' : row.state?.toLowerCase() === row.rule.closed_state ? 'Cerrado / desactivado' : state;
@@ -181,6 +201,7 @@ class JackSignalPanel extends HTMLElement {
       if (row.kind === 'speech' && Object.keys(row.rule.state_labels || {}).length) summary.append(node('p',Object.entries(row.rule.state_labels).map(([raw,spoken]) => `${raw} → ${spoken}`).join(' · ')));
       if (row.kind === 'speech' && row.configured) summary.append(node('p',row.rule.use_defaults ? 'Usa la configuración general de voz' : 'Voz personalizada para este aviso'));
       if (row.kind === 'speech' && row.configured) summary.append(node('p',`Velocidad: ${Number(row.effective?.speed ?? row.rule.speed ?? 1).toLocaleString('es')}×`));
+      if (row.kind === 'speech' && row.configured) summary.append(node('p',`Intervalo mínimo: ${row.rule.cooldown} s. Los cambios dentro del intervalo se omiten.`),node('p',row.speech_status || (row.rule.trigger === 'manual' ? 'Solo manual: no habla al cambiar el sensor.' : 'Pulsa Actualizar para consultar el diagnóstico.'),{'data-speech-status':row.key,class:'tip'}));
       summary.append(node('p',`Prioridad del aviso: ${labels[row.rule.priority]}`)); article.append(summary);
       if (!this.data.alarm_available && (row.kind === 'alarm' || row.kind === 'sensor' && (row.rule.on_open === 'disarmed' || row.rule.on_close === 'disarmed' || row.rule.failed_to_arm && row.rule.sound))) article.append(node('p','Este aviso o alguna de sus condiciones necesita un panel Alarmo vinculado y disponible.',{class:'warning'}));
       if (row.kind === 'sensor' && row.configured && row.rule.on_open === 'never' && row.rule.on_close === 'never' && !row.rule.failed_to_arm) article.append(node('p','Tiene sonidos guardados, pero ninguna condición de aviso activa.',{class:'warning'}));
@@ -189,16 +210,18 @@ class JackSignalPanel extends HTMLElement {
         const btn = node('button',text,{type:'button','aria-label':`${text}: ${row.name}`});
         btn.dataset.unavailable = String(disabled); btn.disabled = this.busy || disabled; btn.addEventListener('click',callback); actions.append(btn);
       };
-      button(row.configured ? 'Editar' : 'Configurar',() => this.edit(row));
+      const content = row.kind === 'sensor' ? 'audio' : row.kind === 'speech' ? 'voz' : 'aviso';
+      button(`${row.configured ? 'Editar' : 'Configurar'} ${content}`,() => this.edit(row));
       if (row.kind === 'sensor') {
         button('Probar apertura',() => this.perform({action:'test',kind:row.kind,key:row.key,field:'sound'}),!row.rule.sound);
         button('Probar cierre',() => this.perform({action:'test',kind:row.kind,key:row.key,field:'close_sound'}),!row.rule.close_sound);
       } else button(row.kind === 'speech' ? 'Escuchar' : 'Probar',() => this.perform({action:'test',kind:row.kind,key:row.key}),!row.configured);
-      button(row.rule.enabled ? 'Desactivar' : 'Activar',() => this.perform({action:'toggle',kind:row.kind,key:row.key,enabled:!row.rule.enabled}),!row.configured);
-      if (row.kind !== 'alarm') button('Copiar a…',() => this.copyTo(row),!row.configured);
+      button(`${row.rule.enabled ? 'Desactivar' : 'Activar'} ${content}`,() => this.perform({action:'toggle',kind:row.kind,key:row.key,enabled:!row.rule.enabled}),!row.configured);
+      if (row.kind !== 'alarm') button(`Copiar ${content} a…`,() => this.copyTo(row),!row.configured);
       article.append(actions);
+      }
     }
-    this.$('empty').hidden = rows.length !== 0; this.$('more').hidden = rows.length <= this.limit;
+    this.$('empty').hidden = groups.length !== 0; this.$('more').hidden = groups.length <= this.limit;
   }
   field(container,key,title,value,options={}) {
     const wrapper = node('div',null,{class:options.type === 'checkbox' ? 'check' : 'field'});
@@ -276,10 +299,16 @@ class JackSignalPanel extends HTMLElement {
         this.field(root,'after','Texto después del valor',rule.after,{maxlength:1000});
         this.field(root,'unit','Añadir la unidad del sensor',rule.unit,{type:'checkbox'});
         const trigger = this.field(root,'trigger','Cuándo hablar',rule.trigger,{choices:Object.entries(triggers).map(([value,label]) => ({value,label}))});
+        const automaticHelp = node('p','',{class:'warning'}); root.append(automaticHelp);
+        const explainTrigger = () => {automaticHelp.textContent = trigger.value === 'manual'
+          ? 'Solo manual: activar el aviso NO hace que hable al cambiar el sensor. Elige Cada cambio de valor o un umbral para avisos automáticos.'
+          : 'Aviso automático: se reproducirá al cumplir esta condición, si está activado y la prioridad lo permite. La prueba manual no comprueba el disparador ni el intervalo.';};
+        trigger.addEventListener('change',explainTrigger); explainTrigger();
         const threshold = this.field(root,'threshold','Umbral numérico',rule.threshold,{type:'number',step:'any'});
         const updateThreshold = () => {const needed = ['above','below'].includes(trigger.value); threshold.required = needed; threshold.parentElement.hidden = !needed;};
         trigger.addEventListener('change',updateThreshold); updateThreshold();
         this.field(root,'cooldown','Intervalo mínimo entre avisos (segundos)',rule.cooldown,{type:'number',min:0,max:86400,step:1,required:true});
+        root.append(node('p','El intervalo omite cambios durante ese tiempo; no los retrasa ni los pone en cola. Usa 0 para avisar tanto al abrir como al cerrar sin espera.',{class:'tip'}));
         const phrase = node('p','',{class:'tip phrase'}); root.append(phrase);
         const updatePhrase = () => {const r = this.collectRule(); phrase.textContent = 'Dirá: ' + [r.before,Object.hasOwn(r.state_labels || {},row.state) ? r.state_labels[row.state] : row.state ?? '[sensor no disponible]',r.unit ? row.unit : '',r.after].filter(Boolean).join(' ');};
         for (const key of ['before','after','unit']) this.controls[key].addEventListener('input',updatePhrase);
@@ -388,9 +417,9 @@ class JackSignalPanel extends HTMLElement {
   }
   editBatch() {
     if(this.busy || !this.selected.size) return;
-    this.batchTargets = [...this.selected].map(key => ({kind:this.kind,key}));
+    this.batchTargets = this.data.rows.filter(row => this.selected.has(`${row.kind}:${row.key}`)).map(({kind,key}) => ({kind,key}));
     this.simpleEditor('batch',`Modificar ${this.selected.size} avisos`,'Los sonidos y condiciones se conservan. Se aplicará todo junto al guardar. Cambiar la activación de la sirena afecta a una alarma que esté disparada.');
-    this.$('fields').append(node('p',this.data.rows.filter(row => row.kind === this.kind && this.selected.has(row.key)).map(row => row.name).join(' · ')));
+    this.$('fields').append(node('p',this.data.rows.filter(row => this.selected.has(`${row.kind}:${row.key}`)).map(row => `${row.name} (${row.kind === 'speech' ? 'voz' : 'audio'})`).join(' · ')));
     this.field(this.$('fields'),'enabled','Activación','',{choices:[{value:'',label:'Conservar'},{value:'true',label:'Activar'},{value:'false',label:'Desactivar'}]});
     this.field(this.$('fields'),'priority','Prioridad','',{choices:[{value:'',label:'Conservar'},...Object.entries(labels).map(([value,label]) => ({value,label}))]});
     this.controls.enabled.focus();

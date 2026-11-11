@@ -114,6 +114,18 @@ JackSignal ajusta el tempo del audio generado conservando el tono, tanto con Pip
 
 Las pruebas siguen usando P0 y las reproducciones automáticas usan la prioridad guardada. El ajuste no afecta a música, DLNA ni sonidos de Alarmo. El formulario nativo de voz conserva la velocidad elegida en el panel.
 
+## Audio y voz en la misma ficha del sensor
+
+Desde 0.15.0, **JackSignal → Sensores** reúne **Audio de archivo** y **Voz del sensor** bajo cada entidad. Puedes editar, probar, activar o desactivar cada uno en esa ficha. Los sensores numéricos también aparecen con su aviso de voz. **Solo voz** es un filtro para trabajar únicamente con TTS. La edición en bloque distingue el audio y la voz del mismo sensor.
+
+Si solo quieres que hable, configura la voz y desactiva el audio de archivo de ese sensor. Si ambos están activados, pueden competir por el reproductor: un audio P2 puede bloquear la voz P0. Las prioridades y la sirena protegida de Alarmo se mantienen.
+
+**Activado no equivale a automático**: elige «Cada cambio de valor» o un umbral en «Cuándo hablar». La prueba manual comprueba el audio, no el disparador. Los nuevos avisos de sensores binarios del panel proponen cada cambio y 0 segundos; tus avisos existentes conservan su configuración.
+
+El **intervalo mínimo** omite los cambios que llegan durante ese tiempo: no los pone en cola. Para comprobar apertura y cierre, usa 0 segundos y deja que termine cada frase antes de cambiar de nuevo. Si usas 15 segundos, un segundo cambio dentro de ese intervalo puede omitirse. Solo un aviso aceptado por el reproductor consume el intervalo.
+
+La ficha muestra el diagnóstico del último cambio automático y lo actualiza cada cinco segundos: esperando, generando, enviado, omitido por intervalo, bloqueado por prioridad o error de TTS. Es información temporal: se reinicia al guardar la configuración o reiniciar Home Assistant. Los cambios de atributos (batería, señal, etc.) ya no descartan una voz en preparación si el estado real del sensor sigue igual; un cambio real de estado sí descarta la frase obsoleta.
+
 ## Texto a voz sin YAML
 
 En **Configurar → Configurar voz de un sensor**:
