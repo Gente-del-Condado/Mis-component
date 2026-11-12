@@ -1,0 +1,30 @@
+Headscale Gateway
+Copyright (c) 2026 the respective copyright holders of the original
+Headscale Gateway code.
+
+SPDX-License-Identifier: AGPL-3.0-only
+
+The original code, scripts, documentation and artwork of this project are
+licensed under the GNU Affero General Public License, version 3 only.
+See LICENSE for the complete terms. This notice applies to original project
+files unless a file carries a separate license or third-party attribution.
+The program comes WITHOUT ANY WARRANTY, to the extent permitted by law.
+
+Headscale Gateway incorporates third-party software. Those components retain
+their own licenses, copyright notices and attribution; this project's license
+does not replace them. In particular, third_party/, src/third_party/ and
+android/third_party/ contain separately licensed materials.
+
+See src/third_party/inventory.json (third_party/inventory.json in packaged
+notices) and the accompanying verbatim license/notice
+files. Electron distributions also include LICENSE and LICENSES.chromium.html.
+The inventory distinguishes Go modules linked into supported server/helper
+builds from the wider module graph, and npm build dependencies.
+
+Server build sources are included as source.tar.gz in the Home Assistant app
+and as payload/source.tar.gz in the YunoHost package. SOURCE.md in each archive
+explains how to compile it. Public source download:
+https://github.com/Gente-del-Condado/headscale-gateway_ynh/blob/main/payload/source.tar.gz
+
+Do not remove notices from distributions. No production credentials,
+issuer private keys or customer data belong in a source or binary release.
