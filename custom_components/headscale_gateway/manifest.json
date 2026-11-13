@@ -2,13 +2,13 @@
   "domain": "headscale_gateway",
   "name": "Headscale Gateway",
   "codeowners": [
-    "@gentedelcondado"
+    "@Gente-del-Condado"
   ],
   "config_flow": true,
-  "documentation": "https://gentedelcondado.es/forgejo/wolfbelmi88/headscale-gateway/src/branch/main/packaging/hacs/README.md",
+  "documentation": "https://gente-del-condado.github.io/headscale-gateway-ha/INTEGRACION_HA.html",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "issue_tracker": "https://gentedelcondado.es/forgejo/wolfbelmi88/headscale-gateway/issues",
+  "issue_tracker": "https://github.com/Gente-del-Condado/Mis-component/issues",
   "requirements": [],
   "version": "1.4.7"
 }
