@@ -69,6 +69,7 @@ class JackSignalPanel extends HTMLElement {
         .sensor-health{padding:16px 20px;margin-bottom:12px;border:1px solid var(--divider-color,#b7c1cb);border-inline-start:4px solid var(--primary-color,#00789a);border-radius:12px;background:var(--card-background-color,#fff)}
         .sensor-health[data-availability=unavailable],.sensor-health[data-availability=missing]{border-inline-start-color:var(--error-color,#b3261e)}
         .health-times{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin:12px 0}.health-times dt{font-size:.85rem;color:var(--secondary-text-color,#526171)}.health-times dd{margin:4px 0 0;font-variant-numeric:tabular-nums}.sensor-health>.muted{font-size:.85rem}.nav{padding:6px;background:var(--secondary-background-color,#eef2f5);border-radius:12px}.nav button{flex:1}.help{padding:0 14px;border:1px solid var(--divider-color,#b7c1cb);border-radius:10px}
+        .history{padding:0 16px;border:1px solid var(--divider-color,#b7c1cb);border-radius:12px;background:var(--card-background-color,#fff)}.history-list{max-height:480px;overflow:auto;padding-inline-start:24px}.history-entry{padding:12px 8px;border-bottom:1px solid var(--divider-color,#d5dae0)}.history-entry p{margin:4px 0}.history-entry time{font-size:.85rem}.history>.muted{font-size:.9rem}
         .badge{display:inline-block;font-size:.85rem;border:1px solid var(--divider-color,#b7c1cb);border-radius:20px;padding:3px 10px;margin:8px 0}.summary{min-height:75px}.warning{border-inline-start:3px solid var(--warning-color,#a56b00);padding-inline-start:10px;font-size:.9rem}.actions{margin-top:16px}
         #message{min-height:30px;padding:6px 0}.empty{padding:32px;text-align:center;border:1px dashed var(--divider-color,#b0bac4);border-radius:12px}
         dialog{width:min(620px,calc(100% - 24px));max-height:90dvh;padding:24px;border:1px solid var(--divider-color,#b0bac4);border-radius:16px;color:var(--primary-text-color,#17212b);background:var(--card-background-color,#fff)}
@@ -128,7 +129,7 @@ class JackSignalPanel extends HTMLElement {
   async pollStatus() {
     if (!this._hass || document.hidden || this.statusPending) return;
     this.statusPending = true;
-    try {this.renderStatus(await this.request({action:'status',entities:[...new Set((this.visibleRows || []).filter(row => row.kind !== 'alarm').map(row => row.key))].slice(0,2000)})); this.connectionStatus('Estados actualizados cada 5 segundos · Pulsa Actualizar para recalcular la lista filtrada');}
+    try {this.renderStatus(await this.request({action:'status',history_keys:[...this.shadowRoot.querySelectorAll('details[data-history][open]')].map(box=>box.dataset.history).filter(key=>(this.visibleRows || []).some(row=>row.key===key)).slice(0,20),entities:[...new Set((this.visibleRows || []).filter(row => row.kind !== 'alarm').map(row => row.key))].slice(0,2000)})); this.connectionStatus('Estados actualizados cada 5 segundos · Pulsa Actualizar para recalcular la lista filtrada');}
     catch {this.$('live').textContent = 'Estado de reproducción no disponible'; this.connectionStatus('No se pudo actualizar. Los datos mostrados pueden estar desactualizados. Revisa la conexión con Home Assistant.');}
     finally {this.statusPending = false;}
   }
@@ -138,6 +139,9 @@ class JackSignalPanel extends HTMLElement {
   }
   renderStatus(status) {
     if (!status) return;
+    for (const [key,items] of Object.entries(status.history || {})) {
+      for (const box of this.shadowRoot.querySelectorAll('details[data-history]')) if (box.dataset.history === key && box.open) this.renderHistory(box,items);
+    }
     if (status.sensors && this.data) {
       for (const row of this.data.rows) if (status.sensors[row.key]) {row.health = status.sensors[row.key]; row.state = row.health.state;}
       this.renderHealth();
@@ -176,6 +180,39 @@ class JackSignalPanel extends HTMLElement {
       const value = node('dd');value.append(node('time','',{'data-time':field}));group.append(value);list.append(group);
     }
     box.append(list,node('p','La disponibilidad es la que comunica Home Assistant. Un registro no confirma un mensaje Zigbee ni una conexión física. Un sensor puede estar sano y llevar horas sin cambiar.',{class:'muted'}));
+    return box;
+  }
+  renderHistory(box,items) {
+    const list = box.querySelector('ol');list.replaceChildren();
+    const names = {preparing:'Preparando',started:'Reproducción iniciada',completed:'Finalizada sin errores',interrupted:'Interrumpida',omitted:'Omitido',error:'Error'};
+    for (const item of items) {
+      const line = node('li',null,{class:'history-entry'});
+      line.append(node('strong',names[item.status] || item.status),node('p',`${item.source} · ${labels[item.priority] || item.priority}`));
+      line.append(node('time',timestampText(item.time,this._hass?.config?.time_zone),{datetime:item.time}));
+      if (item.updated) line.append(node('p',`Último resultado: ${timestampText(item.updated,this._hass?.config?.time_zone)}`,{class:'muted'}));
+      if (item.old != null || item.new != null) line.append(node('p',`Cambio: ${item.old ?? '—'} → ${item.new ?? '—'}`));
+      line.append(node('p',item.reason));list.append(line);
+    }
+    const message = box.querySelector('[data-history-message]');
+    const text = items.length ? `${items.length} registros, del más reciente al más antiguo.` : 'Sin avisos registrados para este sensor desde el arranque. Si no llegan cambios a Home Assistant, JackSignal no puede registrar un intento automático.';
+    if (message.textContent !== text) message.textContent = text;
+  }
+  historyCard(row) {
+    const box = node('details',null,{class:'history','data-history':row.key});
+    box.append(node('summary','3. Historial de avisos'));
+    box.append(node('p','Últimos 50 registros de este sensor; máximo 1.000 entre todos. Se conserva al editar avisos y se vacía al reiniciar Home Assistant. Finalizada sin errores significa que FFmpeg terminó correctamente, no que se haya comprobado sonido físico.',{class:'muted'}));
+    const button = node('button','Actualizar historial',{type:'button','aria-label':`Actualizar historial: ${row.name}`});
+    const message = node('p','',{'data-history-message':'',role:'status'});
+    const refresh = async () => {
+      if (button.disabled) return;
+      button.disabled = true;
+      try {const response = await this.request({action:'history',key:row.key});this.renderHistory(box,response.entries);}
+      catch(err) {message.textContent = `No se pudo actualizar el historial. ${this.error(err)}`;}
+      finally {button.disabled = false;}
+    };
+    button.addEventListener('click',refresh);
+    box.addEventListener('toggle',() => {if (box.open) refresh();});
+    box.append(button,message,node('ol',null,{class:'history-list'}));
     return box;
   }
   selectionStatus() {
@@ -284,6 +321,7 @@ class JackSignalPanel extends HTMLElement {
       if (row.kind !== 'alarm') button(`Copiar ${content} a…`,() => this.copyTo(row),!row.configured);
       article.append(actions);
       }
+      if (group[0].kind !== 'alarm') card.append(this.historyCard(group[0]));
     }
     this.renderHealth();
     this.$('empty').hidden = groups.length !== 0; this.$('more').hidden = groups.length <= this.limit;

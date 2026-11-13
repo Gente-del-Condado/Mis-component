@@ -114,6 +114,16 @@ JackSignal ajusta el tempo del audio generado conservando el tono, tanto con Pip
 
 Las pruebas siguen usando P0 y las reproducciones automáticas usan la prioridad guardada. El ajuste no afecta a música, DLNA ni sonidos de Alarmo. El formulario nativo de voz conserva la velocidad elegida en el panel.
 
+## Historial de avisos por sensor
+
+Desde 0.17.0, abre **JackSignal → Sensores → ficha del sensor → 3. Historial de avisos**. Muestra hora del intento, origen (audio/voz automático, prueba manual o acción), prioridad, transición del sensor cuando procede y motivo del resultado. Distingue **Preparando**, **Reproducción iniciada**, **Finalizada sin errores**, **Interrumpida**, **Omitido** y **Error**.
+
+El resultado se actualiza cuando termina FFmpeg o se interrumpe el audio. «Finalizada sin errores» confirma el resultado del proceso, no que el altavoz haya emitido sonido audible. Se registran omisiones por intervalo, prioridad, configuración manual/desactivada, falta de audio, condiciones de Alarmo o cambios de estado durante la preparación. Las pruebas del panel siguen usando P0; el historial no cambia las prioridades.
+
+Se muestran los últimos **50 registros por sensor**, del más reciente al más antiguo, con un límite global de **1.000 registros en memoria**. Se conservan al editar la configuración y se vacían al reiniciar Home Assistant. No se escribe un registro permanente en disco. Si el sensor no comunica cambios a Home Assistant, no se inventan intentos de reproducción: consulta también la disponibilidad y las fechas de su ficha.
+
+Los historiales abiertos de sensores visibles se actualizan junto al diagnóstico cada cinco segundos (hasta 20 abiertos). También disponen de **Actualizar historial**. El acceso sigue limitado a administradores.
+
 ## Disponibilidad y actividad del sensor
 
 Desde 0.16.0, cada ficha muestra **Disponible en Home Assistant**, **No disponible**, **Estado desconocido** o **Entidad no encontrada**, además del estado interno y tres fechas:

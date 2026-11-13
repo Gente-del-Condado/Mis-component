@@ -9,6 +9,7 @@ from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 
+from . import history
 from .const import ALARM, RULES, SENSOR_RULES, Priority
 from .media import resolve
 from .playback import Playback
@@ -45,9 +46,7 @@ class AlarmSounds:
             async_track_state_change_event(self.hass, [self.alarm], self._state_changed),
             self.hass.bus.async_listen("alarmo_failed_to_arm", self._failed_to_arm),
         ] if self.alarm else []
-        opening_sensors = [entity_id for entity_id, rule in self.sensor_rules.items()
-                           if any(rule.get(key, "never") in {"disarmed", "always"}
-                                  for key in ("on_open", "on_close"))]
+        opening_sensors = list(self.sensor_rules)
         if opening_sensors:
             subscriptions.append(async_track_state_change_event(
                 self.hass, opening_sensors, self._sensor_opened,
@@ -57,12 +56,16 @@ class AlarmSounds:
     async def _sensor_opened(self, event: Event) -> None:
         """Play distinct sounds for real activation and deactivation transitions."""
         old, new = event.data.get("old_state"), event.data.get("new_state")
-        if old is None or new is None:
+        if old is None or new is None or old.state == new.state:
             return
         entity_id = event.data["entity_id"]
         async with self._lock:
             rule = self.sensor_rules.get(entity_id)
-            if not rule or not rule.get("enabled", True):
+            if not rule:
+                return
+            attempt = history.begin(self.hass, entity_id, "Audio automático", rule.get("priority", "high"), old.state, new.state)
+            if not rule.get("enabled", True):
+                history.finish(attempt, "omitted", "Aviso de audio desactivado.")
                 return
             open_state = rule.get("open_state", "on")
             closed_state = rule.get("closed_state", CLOSED_STATES.get(open_state))
@@ -70,30 +73,35 @@ class AlarmSounds:
             if closed_state is None or (previous, updated) not in {
                 (closed_state, open_state), (open_state, closed_state),
             }:
+                history.finish(attempt, "omitted", "La transición no coincide con los estados de apertura/cierre configurados.")
                 _LOGGER.debug("Sensor %s %s -> %s ignored: expected %s/%s", entity_id,
                               old.state, new.state, open_state, closed_state)
                 return
             opening = updated == open_state
             mode = rule.get("on_open" if opening else "on_close", "never")
             if mode not in {"disarmed", "always"}:
+                history.finish(attempt, "omitted", "No hay aviso automático habilitado para esta apertura o cierre.")
                 _LOGGER.debug("Sensor %s %s -> %s ignored: mode=%s", entity_id, old.state, new.state, mode)
                 return
             panel = self.hass.states.get(self.alarm) if self.alarm else None
             if mode == "disarmed" and (panel is None or panel.state != "disarmed"):
+                history.finish(attempt, "omitted", "Requiere Alarmo desarmado; el panel no está desarmado o no está disponible.")
                 _LOGGER.debug("Sensor %s %s -> %s ignored: panel=%s", entity_id, old.state, new.state,
                               panel.state if panel else "missing")
                 return
             current = self.hass.states.get(entity_id)
             if current is None or current.state != new.state:
+                history.finish(attempt, "omitted", "El sensor ya cambió de estado de nuevo.")
                 _LOGGER.debug("Sensor %s %s -> %s ignored: transition superseded", entity_id, old.state, new.state)
                 return
             selection = rule.get("sound" if opening else "close_sound")
             if not selection:
+                history.finish(attempt, "omitted", "No hay audio asignado para esta apertura o cierre.")
                 _LOGGER.debug("Sensor %s %s -> %s ignored: no sound assigned", entity_id, old.state, new.state)
             if selection:
                 _LOGGER.debug("Sensor %s %s -> %s matched: mode=%s", entity_id, old.state, new.state, mode)
                 kind = "sensor_open" if opening else "sensor_close"
-                await self._play({**rule, "sound": selection}, f"{kind}:{entity_id}")
+                await self._play({**rule, "sound": selection}, f"{kind}:{entity_id}", attempt=attempt)
 
     def start(self) -> None:
         """Own subscriptions so options can replace them without reloading playback."""
@@ -162,7 +170,7 @@ class AlarmSounds:
             sensors = event.data.get("sensors") or []
             if event.data.get("reason") == "open_sensors":
                 matches = [
-                    self.sensor_rules[entity_id]
+                    (entity_id, self.sensor_rules[entity_id])
                     for entity_id in sensors
                     if entity_id in self.sensor_rules
                     and self.sensor_rules[entity_id].get("failed_to_arm", True)
@@ -170,21 +178,26 @@ class AlarmSounds:
                     and self.sensor_rules[entity_id].get("enabled", True)
                 ]
                 if matches:
-                    rule = max(matches, key=lambda item: Priority[item["priority"].upper()])
-                    await self._play(rule, "failed_to_arm")
+                    sensor, rule = max(matches, key=lambda item: Priority[item[1]["priority"].upper()])
+                    attempt = history.begin(self.hass, sensor, "Audio por fallo al armar Alarmo", rule["priority"])
+                    await self._play(rule, "failed_to_arm", attempt=attempt)
                     return
             if rule := self.rules.get("failed_to_arm"):
                 await self._play(rule, "failed_to_arm")
 
-    async def _play(self, rule: dict, kind: str) -> None:
+    async def _play(self, rule: dict, kind: str, *, attempt=None) -> None:
         if not rule.get("enabled", True):
             return
         priority = Priority[rule["priority"].upper()]
         try:
             sound = await resolve(self.hass, rule["sound"]["media_content_id"], None)
-            await self.playback.play(
+            result = await self.playback.play(
                 sound, priority, repeat=kind == "triggered" and rule.get("repeat", False),
                 owner=kind,
+                **({"on_result": history.playback_result(attempt)} if attempt else {}),
             )
+            if attempt:
+                history.accepted(attempt, result)
         except (HomeAssistantError, OSError) as err:
+            history.finish(attempt, "error", "No se pudo preparar o reproducir el audio. Revisa los registros.")
             _LOGGER.warning("Could not play Alarmo event %s (%s)", kind, type(err).__name__)

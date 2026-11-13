@@ -11,6 +11,7 @@ from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.exceptions import HomeAssistantError
 
+from . import history
 from .alarm import CLOSED_STATES
 from .const import ALARM, DEFAULT_PRIORITIES, DOMAIN, EVENTS, LOCAL_PREFIX, RULES, SENSOR_RULES, Priority
 from .media import AUDIO_EXTENSIONS, resolve
@@ -243,6 +244,11 @@ async def validate_rule(hass, kind, key, supplied, options=None):
 async def handle(hass, entry, msg):
     """Shared action implementation; the websocket boundary requires an admin."""
     action = msg["action"]
+    if action == "history":
+        key = msg.get("key", "")
+        if not isinstance(key, str) or len(key) > 255 or key.partition(".")[0] not in {"sensor", "binary_sensor"}:
+            raise ValueError("Selecciona un sensor válido.")
+        return {"entries": history.entries(hass, key)}
     if action == "defaults":
         if msg.get("revision") != revision(entry.options):
             raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")
@@ -267,7 +273,11 @@ async def handle(hass, entry, msg):
         if (not isinstance(entities, list) or len(entities) > 2000 or
                 any(not isinstance(key, str) or len(key) > 255 or key.partition(".")[0] not in {"sensor", "binary_sensor"} for key in entities)):
             raise ValueError("La consulta de sensores no es válida (máximo 2000).")
+        history_keys = msg.get("history_keys", [])
+        if not isinstance(history_keys, list) or len(history_keys) > 20 or any(key not in entities for key in history_keys):
+            raise ValueError("Consulta como máximo 20 historiales de los sensores visibles.")
         return {**playback_status(entry), "speech": speech_status(hass),
+                "history": {key: history.entries(hass, key) for key in history_keys},
                 "sensors": {key: sensor_health(hass.states.get(key)) for key in set(entities)}}
     if action == "batch":
         if msg.get("revision") != revision(entry.options):
@@ -303,18 +313,25 @@ async def handle(hass, entry, msg):
     if action == "test":
         if "rule" in msg:
             rule = await validate_rule(hass, kind, key, msg["rule"], entry.options)
-        if kind == "speech":
-            sound = await audio_for(hass, hass.states.get(key), effective_rule(hass, rule, entry.options))
-        else:
-            field = msg.get("field", "sound")
-            if field not in ({"sound", "close_sound"} if kind == "sensor" else {"sound"}):
-                raise ValueError("Prueba no válida para este aviso.")
-            if not rule.get(field):
-                raise ValueError("Este aviso no tiene un sonido asignado.")
-            sound = await resolve(hass, rule[field]["media_content_id"], None)
-        # Tests never borrow a rule's critical priority, repeat, or Alarmo owner.
-        accepted = await entry.runtime_data.play(sound, Priority.LOW, owner="panel_preview")
-        return {"accepted": accepted, "message": "Prueba aceptada (P0, sin repetición)." if accepted else "No se ha reproducido: hay un aviso de mayor prioridad o una sirena protegida."}
+        attempt = history.begin(hass, key, "Prueba de voz (panel)" if kind == "speech" else "Prueba de audio (panel)", "low") if kind != "alarm" else None
+        try:
+            if kind == "speech":
+                sound = await audio_for(hass, hass.states.get(key), effective_rule(hass, rule, entry.options))
+            else:
+                field = msg.get("field", "sound")
+                if field not in ({"sound", "close_sound"} if kind == "sensor" else {"sound"}):
+                    raise ValueError("Prueba no válida para este aviso.")
+                if not rule.get(field):
+                    raise ValueError("Este aviso no tiene un sonido asignado.")
+                sound = await resolve(hass, rule[field]["media_content_id"], None)
+            # Tests never borrow a rule's critical priority, repeat, or Alarmo owner.
+            accepted = await entry.runtime_data.play(sound, Priority.LOW, owner="panel_preview", **({"on_result": history.playback_result(attempt)} if attempt else {}))
+            if attempt:
+                history.accepted(attempt, accepted)
+            return {"accepted": accepted, "message": "Prueba aceptada (P0, sin repetición)." if accepted else "No se ha reproducido: hay un aviso de mayor prioridad o una sirena protegida."}
+        except (HomeAssistantError, OSError, ValueError):
+            history.finish(attempt, "error", "No se pudo preparar o reproducir la prueba del panel.")
+            raise
     if action not in {"save", "toggle"}:
         raise ValueError("Acción no válida.")
     if msg.get("revision") != revision(entry.options):
@@ -339,7 +356,7 @@ async def handle(hass, entry, msg):
 @websocket_api.websocket_command({vol.Required("type"): "jacksignal/manage", vol.Required("action"): str,
     vol.Optional("kind"): str, vol.Optional("key"): str, vol.Optional("revision"): str,
     vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str,
-    vol.Optional("entities"): [str],
+    vol.Optional("entities"): [str], vol.Optional("history_keys"): [str],
     vol.Optional("engine"): str, vol.Optional("language"): str, vol.Optional("voice"): str,
     vol.Optional("apply_to_all"): bool, vol.Optional("targets"): [dict], vol.Optional("changes"): dict})
 @websocket_api.require_admin

@@ -44,6 +44,7 @@ class Playback:
         self.sound: Sound | None = None
         self.priority = Priority.LOW
         self.owner: str | None = None
+        self._on_result = None
         self._repeating_siren = False
         self.changed: Callable[[], None] = lambda: None
         self.listeners: set[Callable[[], None]] = set()
@@ -60,6 +61,7 @@ class Playback:
         *,
         repeat: bool = False,
         owner: str | None = None,
+        on_result: Callable[[str], None] | None = None,
     ) -> bool:
         """Replace active playback when the new priority permits it."""
         async with self._lock:
@@ -95,6 +97,7 @@ class Playback:
                 self.notify()
                 raise
             _LOGGER.debug("Audio started: owner=%s priority=%s repeat=%s", owner, priority.name, repeat)
+            self._on_result = on_result
             self._process = process
             self.sound = sound
             self.priority = priority
@@ -116,6 +119,8 @@ class Playback:
             if self._process is not process:
                 return
             _LOGGER.debug("Audio finished: owner=%s exit=%s", self.owner, process.returncode)
+            if self._on_result:
+                self._on_result("error" if process.returncode else "completed")
             self._reset()
             self.notify()
             if process.returncode:
@@ -156,6 +161,7 @@ class Playback:
 
     async def _stop(self) -> None:
         if (process := self._process) is not None:
+            interrupted = process.returncode is None
             if process.returncode is None:
                 _LOGGER.debug("Audio interrupted: owner=%s priority=%s", self.owner, self.priority.name)
                 try:
@@ -164,6 +170,8 @@ class Playback:
                 except ProcessLookupError:
                     pass
             await process.wait()
+            if self._on_result:
+                self._on_result("interrupted" if interrupted else "error" if process.returncode else "completed")
         self._reset()
 
     def _reset(self) -> None:
@@ -172,4 +180,5 @@ class Playback:
         self.paused = False
         self.priority = Priority.LOW
         self.owner = None
+        self._on_result = None
         self._repeating_siren = False

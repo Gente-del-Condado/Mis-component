@@ -9,6 +9,7 @@ import time
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 
+from . import history
 from .const import Priority
 from .media import error, resolve
 from .playback import validate_speed
@@ -147,8 +148,15 @@ async def audio_for(hass, state, rule):
 
 
 async def preview(hass, playback, sensor, rule):
-    sound = await audio_for(hass, hass.states.get(sensor), rule)
-    return await playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+    attempt = history.begin(hass, sensor, "Prueba de voz (configuración)", rule["priority"])
+    try:
+        sound = await audio_for(hass, hass.states.get(sensor), rule)
+        result = await playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}", on_result=history.playback_result(attempt))
+        history.accepted(attempt, result)
+        return result
+    except (HomeAssistantError, OSError, ValueError):
+        history.finish(attempt, "error", "No se pudo generar o reproducir la prueba de voz.")
+        raise
 
 
 class SensorSpeech:
@@ -165,7 +173,7 @@ class SensorSpeech:
 
     def start(self):
         self._closed = False
-        sensors = [sensor for sensor, rule in self.rules.items() if rule.get("trigger", "manual") != "manual"]
+        sensors = list(self.rules)
         if sensors:
             self._unsubscribe = async_track_state_change_event(self.hass, sensors, self._changed)
 
@@ -188,14 +196,23 @@ class SensorSpeech:
         rule = self.rules.get(sensor)
         if self._closed or rule is None:
             raise error("speech_rule_missing")
+        attempt = history.begin(self.hass, sensor, "Voz solicitada por acción", rule["priority"])
         if not rule.get("enabled", True):
+            history.finish(attempt, "omitted", "Aviso de voz desactivado.")
             raise error("rule_disabled")
         generation = self._generation
-        state = self.hass.states.get(sensor)
-        sound = await audio_for(self.hass, state, effective_rule(self.hass, rule, self.options))
-        if generation != self._generation:
-            return False
-        return await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+        try:
+            state = self.hass.states.get(sensor)
+            sound = await audio_for(self.hass, state, effective_rule(self.hass, rule, self.options))
+            if generation != self._generation:
+                history.finish(attempt, "omitted", "Configuración cambiada durante la generación.")
+                return False
+            result = await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}", on_result=history.playback_result(attempt))
+            history.accepted(attempt, result)
+            return result
+        except (HomeAssistantError, OSError, ValueError):
+            history.finish(attempt, "error", "No se pudo generar o reproducir la voz solicitada.")
+            raise
 
     def diagnostic(self, sensor):
         rule = self.rules.get(sensor, {})
@@ -216,31 +233,42 @@ class SensorSpeech:
         old = event.data.get("old_state")
         async with self._lock:
             rule = self.rules.get(sensor)
-            if self._closed or not rule or not rule.get("enabled", True):
+            if self._closed or not rule:
                 return
             if old is not None and new is not None and old.state == new.state:
                 return
+            attempt = history.begin(self.hass, sensor, "Voz automática", rule.get("priority", "low"),
+                                    old.state if old else None, new.state if new else None)
+            if not rule.get("enabled", True) or rule.get("trigger", "manual") == "manual":
+                history.finish(attempt, "omitted", self.diagnostic(sensor))
+                return
             if not matches(old, new, rule):
                 self.last_result[sensor] = "Cambio omitido: estado no disponible o condición de voz no cumplida."
+                history.finish(attempt, "omitted", self.last_result[sensor])
                 return
             if not self._current(sensor, new):
                 self.last_result[sensor] = "Cambio omitido: el sensor ya ha cambiado de nuevo."
+                history.finish(attempt, "omitted", self.last_result[sensor])
                 return
             now = time.monotonic()
             remaining = rule.get("cooldown", 60) - (now - self._last.get(sensor, -math.inf))
             if remaining > 0:
                 self.last_result[sensor] = f"Cambio omitido por intervalo mínimo: quedaban {math.ceil(remaining)} segundos. No se pone en cola."
+                history.finish(attempt, "omitted", self.last_result[sensor])
                 return
             generation = self._generation
             self.last_result[sensor] = "Generando voz para el último cambio del sensor…"
             try:
                 sound = await audio_for(self.hass, new, effective_rule(self.hass, rule, self.options))
                 if generation != self._generation:
+                    history.finish(attempt, "omitted", "Configuración cambiada o integración detenida durante la generación.")
                     return
                 if not self._current(sensor, new):
                     self.last_result[sensor] = "Voz descartada: el sensor cambió de estado mientras se generaba el audio."
+                    history.finish(attempt, "omitted", self.last_result[sensor])
                     return
-                accepted = await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}")
+                accepted = await self.playback.play(sound, Priority[rule["priority"].upper()], owner=f"speech:{sensor}", on_result=history.playback_result(attempt))
+                history.accepted(attempt, accepted)
                 if accepted:
                     self._last[sensor] = time.monotonic()
                     self.last_result[sensor] = "Último aviso automático enviado al reproductor."
@@ -248,4 +276,5 @@ class SensorSpeech:
                     self.last_result[sensor] = "Voz bloqueada por un audio de mayor prioridad o una sirena protegida."
             except (HomeAssistantError, OSError, ValueError) as err:
                 self.last_result[sensor] = "Error al generar o reproducir voz. Revisa el motor TTS y los registros de JackSignal."
+                history.finish(attempt, "error", self.last_result[sensor])
                 _LOGGER.warning("Sensor speech failed for %s (%s)", sensor, type(err).__name__)
