@@ -114,6 +114,20 @@ JackSignal ajusta el tempo del audio generado conservando el tono, tanto con Pip
 
 Las pruebas siguen usando P0 y las reproducciones automáticas usan la prioridad guardada. El ajuste no afecta a música, DLNA ni sonidos de Alarmo. El formulario nativo de voz conserva la velocidad elegida en el panel.
 
+## Disponibilidad y actividad del sensor
+
+Desde 0.16.0, cada ficha muestra **Disponible en Home Assistant**, **No disponible**, **Estado desconocido** o **Entidad no encontrada**, además del estado interno y tres fechas:
+
+- **Último cambio de estado**: por ejemplo, pasar de cerrada a abierta; también cuenta pasar a no disponible.
+- **Última actualización de estado o atributos**: incluye cambios de batería u otros atributos.
+- **Último registro en Home Assistant**: incluye registros que mantienen el mismo valor, si Home Assistant dispone de esa fecha. No significa necesariamente un mensaje físico del dispositivo ni un `last_seen` de Zigbee.
+
+Se muestra fecha y hora en la zona horaria de Home Assistant y tiempo transcurrido. Las fechas pertenecen al estado actual, no a un historial permanente, y pueden reiniciarse al recrear la entidad. Que un sensor lleve horas sin cambiar no indica por sí solo un fallo; «disponible» es lo declarado por su integración, no una prueba de conectividad física.
+
+El panel consulta cada cinco segundos los sensores visibles (hasta 2000 entidades) sin modificar el borrador abierto. Si falla la consulta, avisa de datos posiblemente desactualizados. El filtro **Disponibilidad del sensor** permite localizar problemas; pulsa **Actualizar** para recalcular la lista filtrada. Se distingue así el estado del sensor de las condiciones y el resultado del aviso de JackSignal.
+
+La configuración general de voz/Piper y la ayuda de diagnóstico están recogidas en secciones desplegables, accesibles por teclado. Se mantienen los controles de audio/voz y las prioridades de Alarmo.
+
 ## Audio y voz en la misma ficha del sensor
 
 Desde 0.15.0, **JackSignal → Sensores** reúne **Audio de archivo** y **Voz del sensor** bajo cada entidad. Puedes editar, probar, activar o desactivar cada uno en esa ficha. Los sensores numéricos también aparecen con su aviso de voz. **Solo voz** es un filtro para trabajar únicamente con TTS. La edición en bloque distingue el audio y la voz del mismo sensor.

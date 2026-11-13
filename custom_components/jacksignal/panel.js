@@ -12,7 +12,29 @@ function node(tag, text, attrs = {}) {
 function soundName(selection) {
   return selection?.media_content_id?.replace('media-source://media_source/', '') || 'Sin sonido asignado';
 }
-function noticeGroups(rows,kind,query,filter) {
+function healthLabel(health) {
+  return ({available:'Disponible en Home Assistant',unavailable:'No disponible',unknown:'Estado desconocido',missing:'Entidad no encontrada'})[health?.availability] || 'Sin datos de disponibilidad';
+}
+function sensorStateText(row) {
+  if (row.state == null) return 'Entidad no encontrada';
+  if (row.state === 'unavailable') return 'No disponible';
+  if (row.state === 'unknown') return 'Estado desconocido';
+  if (row.kind === 'sensor') {
+    if (row.state.toLowerCase() === row.rule.open_state) return 'Abierto / activado';
+    if (row.state.toLowerCase() === row.rule.closed_state) return 'Cerrado / desactivado';
+  }
+  return row.state;
+}
+function timestampText(value,timeZone,now=Date.now()) {
+  if (!value || !Number.isFinite(Date.parse(value))) return 'Sin registro';
+  const date = new Date(value), seconds = Math.max(0,Math.floor((now-date.getTime())/1000));
+  const ago = seconds < 60 ? `hace ${seconds} s` : seconds < 3600 ? `hace ${Math.floor(seconds/60)} min` : seconds < 86400 ? `hace ${Math.floor(seconds/3600)} h` : `hace ${Math.floor(seconds/86400)} días`;
+  let formatted;
+  try {formatted = new Intl.DateTimeFormat('es-ES',{dateStyle:'short',timeStyle:'medium',timeZone}).format(date);}
+  catch {formatted = date.toISOString();}
+  return `${formatted} · ${ago}`;
+}
+function noticeGroups(rows,kind,query,filter,availability='all') {
   const groups = new Map();
   for (const row of rows) {
     if (kind === 'sensor' ? row.kind === 'alarm' : row.kind !== kind) continue;
@@ -20,6 +42,7 @@ function noticeGroups(rows,kind,query,filter) {
     groups.get(row.key).push(row);
   }
   return [...groups.values()].filter(group =>
+    (availability === 'all' || group.some(row => row.health?.availability === availability)) &&
     group.some(row => filter === 'all' || row.status === filter) &&
     group.some(row => fold([row.name,row.key,soundName(row.rule.sound),soundName(row.rule.close_sound),row.rule.before,row.rule.after,...Object.values(row.rule.state_labels || {})].join(' ')).includes(query)));
 }
@@ -43,6 +66,9 @@ class JackSignalPanel extends HTMLElement {
         .check{display:flex;align-items:center;gap:10px;min-height:48px;margin:8px 0}input[type=checkbox]{width:22px;height:22px;accent-color:var(--primary-color,#00789a)}
         #cards{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}li{min-width:0}article{padding:20px;border:1px solid var(--divider-color,#d5dae0);border-radius:14px;background:var(--card-background-color,#fff);overflow-wrap:anywhere}
         #cards.compact{grid-template-columns:1fr}.notice-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}#cards header{flex-wrap:wrap;border-radius:12px;margin-bottom:10px}h4{margin:0 0 8px}
+        .sensor-health{padding:16px 20px;margin-bottom:12px;border:1px solid var(--divider-color,#b7c1cb);border-inline-start:4px solid var(--primary-color,#00789a);border-radius:12px;background:var(--card-background-color,#fff)}
+        .sensor-health[data-availability=unavailable],.sensor-health[data-availability=missing]{border-inline-start-color:var(--error-color,#b3261e)}
+        .health-times{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin:12px 0}.health-times dt{font-size:.85rem;color:var(--secondary-text-color,#526171)}.health-times dd{margin:4px 0 0;font-variant-numeric:tabular-nums}.sensor-health>.muted{font-size:.85rem}.nav{padding:6px;background:var(--secondary-background-color,#eef2f5);border-radius:12px}.nav button{flex:1}.help{padding:0 14px;border:1px solid var(--divider-color,#b7c1cb);border-radius:10px}
         .badge{display:inline-block;font-size:.85rem;border:1px solid var(--divider-color,#b7c1cb);border-radius:20px;padding:3px 10px;margin:8px 0}.summary{min-height:75px}.warning{border-inline-start:3px solid var(--warning-color,#a56b00);padding-inline-start:10px;font-size:.9rem}.actions{margin-top:16px}
         #message{min-height:30px;padding:6px 0}.empty{padding:32px;text-align:center;border:1px dashed var(--divider-color,#b0bac4);border-radius:12px}
         dialog{width:min(620px,calc(100% - 24px));max-height:90dvh;padding:24px;border:1px solid var(--divider-color,#b0bac4);border-radius:16px;color:var(--primary-text-color,#17212b);background:var(--card-background-color,#fff)}
@@ -58,11 +84,11 @@ class JackSignalPanel extends HTMLElement {
         <div class="tools"><p id="panel-info" class="muted">Cargando configuración…</p><div class="actions"><a class="button" href="/config/integrations/integration/jacksignal">Configuración y audio</a><button id="refresh" type="button">Actualizar</button></div></div>
         <div class="overview" aria-label="Resumen de avisos"><div class="metric"><strong id="count-active">—</strong>Activados</div><div class="metric"><strong id="count-disabled">—</strong>Desactivados</div><div class="metric"><strong id="count-empty">—</strong>Sin configurar</div><div class="metric" id="live">Consultando reproducción…</div></div>
         <div class="nav" role="group" aria-label="Tipo de aviso"><button type="button" data-kind="sensor" aria-pressed="true">Sensores</button><button type="button" data-kind="alarm" aria-pressed="false">Alarmo</button><button type="button" data-kind="speech" aria-pressed="false">Solo voz</button></div>
-        <section id="voice-general" class="tip" hidden><h2>Voz predeterminada</h2><p id="voice-general-info"></p><div class="actions"><button id="voice-defaults" type="button">Configurar voz general</button><button id="piper-prepare" type="button">Preparar Piper</button><a class="button" href="/config/integrations/dashboard">Conectar Wyoming</a><a id="piper-app" class="button" href="/hassio/addon/core_piper/info">Abrir Piper</a></div><p id="piper-status" role="status"></p></section>
-        <search aria-label="Buscar avisos"><div class="filters"><div class="field"><label for="query">Buscar por nombre, sensor o sonido</label><input id="query" type="search" name="query" placeholder="Por ejemplo, ventana del salón" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="filter">Mostrar</label><select id="filter" name="filter"><option value="all">Todos</option><option value="configured">Configurados y activados</option><option value="unconfigured">Sin configurar</option><option value="disabled">Desactivados</option></select></div></div></search>
+        <details id="voice-general" class="tip" hidden><summary>Configuración general de voz y Piper</summary><p id="voice-general-info"></p><div class="actions"><button id="voice-defaults" type="button">Configurar voz general</button><button id="piper-prepare" type="button">Preparar Piper</button><a class="button" href="/config/integrations/dashboard">Conectar Wyoming</a><a id="piper-app" class="button" href="/hassio/addon/core_piper/info">Abrir Piper</a></div><p id="piper-status" role="status"></p></details>
+        <p id="connection-status" class="muted" role="status">Consultando el estado de los sensores…</p><search aria-label="Buscar avisos"><div class="filters"><div class="field"><label for="query">Buscar por nombre, sensor o sonido</label><input id="query" type="search" name="query" placeholder="Por ejemplo, ventana del salón" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="filter">Mostrar</label><select id="filter" name="filter"><option value="all">Todos</option><option value="configured">Configurados y activados</option><option value="unconfigured">Sin configurar</option><option value="disabled">Desactivados</option></select></div><div class="field" id="availability-field"><label for="availability-filter">Disponibilidad del sensor</label><select id="availability-filter" name="availability"><option value="all">Todas</option><option value="available">Disponible</option><option value="unavailable">No disponible</option><option value="unknown">Estado desconocido</option><option value="missing">Entidad no encontrada</option></select></div></div></search>
         <div class="actions"><button id="compact" type="button" aria-pressed="true">Vista compacta</button><button id="select-visible" type="button">Seleccionar configurados visibles</button><button id="clear-selection" type="button">Quitar selección</button></div>
         <div id="batch-tools" class="actions" hidden><span id="selection-count"></span><button id="batch-edit" type="button">Modificar selección</button></div>
-        <p class="tip">Las pruebas son manuales, usan prioridad baja (P0) y no repiten el sonido. No activan Alarmo ni modifican el sensor. Puedes probar una regla desactivada sin activarla.</p>
+        <details class="help"><summary>Cómo comprobar por qué no suena un aviso</summary><p>1. Comprueba la disponibilidad y si cambia el estado al mover el sensor. 2. Revisa la activación y las condiciones del aviso. 3. Consulta el diagnóstico de voz y las prioridades.</p><p>Las fechas pertenecen al estado actual de Home Assistant; no son un historial permanente y pueden reiniciarse al recrear la entidad. Las horas usan la zona horaria de Home Assistant.</p><p class="tip">Las pruebas son manuales, usan prioridad baja (P0) y no repiten el sonido. No activan Alarmo ni modifican el sensor. Puedes probar una regla desactivada sin activarla.</p></details>
         <button id="stop" type="button">Detener prueba</button><p id="message" role="status" aria-live="polite"></p><progress id="loading" aria-label="Cargando avisos"></progress>
         <h2 id="results" tabindex="-1">Avisos</h2><ul id="cards" role="list"></ul><p id="empty" class="empty" hidden>No hay avisos que coincidan. Cambia la búsqueda o el filtro.</p><button id="more" type="button" hidden>Mostrar más</button>
       </main>
@@ -73,6 +99,7 @@ class JackSignalPanel extends HTMLElement {
     }));
     this.$('query').addEventListener('input', () => {this.selected.clear(); this.limit = 60; this.renderList();});
     this.$('filter').addEventListener('change', () => {this.selected.clear(); this.limit = 60; this.renderList();});
+    this.$('availability-filter').addEventListener('change', () => {this.selected.clear(); this.limit = 60; this.renderList();});
     this.$('refresh').addEventListener('click', () => this.load());
     this.$('more').addEventListener('click', () => {this.limit += 60; this.renderList();});
     this.$('stop').addEventListener('click', () => this.perform({action:'stop_test'}));
@@ -101,16 +128,55 @@ class JackSignalPanel extends HTMLElement {
   async pollStatus() {
     if (!this._hass || document.hidden || this.statusPending) return;
     this.statusPending = true;
-    try {this.renderStatus(await this.request({action:'status'}));}
-    catch {this.$('live').textContent = 'Estado de reproducción no disponible';}
+    try {this.renderStatus(await this.request({action:'status',entities:[...new Set((this.visibleRows || []).filter(row => row.kind !== 'alarm').map(row => row.key))].slice(0,2000)})); this.connectionStatus('Estados actualizados cada 5 segundos · Pulsa Actualizar para recalcular la lista filtrada');}
+    catch {this.$('live').textContent = 'Estado de reproducción no disponible'; this.connectionStatus('No se pudo actualizar. Los datos mostrados pueden estar desactualizados. Revisa la conexión con Home Assistant.');}
     finally {this.statusPending = false;}
+  }
+  connectionStatus(message) {
+    const el = this.$('connection-status');
+    if (el.textContent !== message) el.textContent = message;
   }
   renderStatus(status) {
     if (!status) return;
+    if (status.sensors && this.data) {
+      for (const row of this.data.rows) if (status.sensors[row.key]) {row.health = status.sensors[row.key]; row.state = row.health.state;}
+      this.renderHealth();
+    }
     for (const el of this.shadowRoot.querySelectorAll('[data-speech-status]')) {
       if (status.speech?.[el.dataset.speechStatus]) el.textContent = status.speech[el.dataset.speechStatus];
     }
     this.$('live').textContent = status.active ? `${status.paused ? 'En pausa' : 'Reproduciendo'} · ${labels[status.priority]} · ${status.source}` : 'En reposo · Listo para reproducir';
+  }
+  renderHealth() {
+    const timeZone = this._hass?.config?.time_zone;
+    for (const box of this.shadowRoot.querySelectorAll('[data-sensor-health]')) {
+      const row = this.data.rows.find(row => row.kind !== 'alarm' && row.key === box.dataset.sensorHealth);
+      if (!row) continue;
+      const health = row.health;
+      box.querySelector('[data-availability]').textContent = healthLabel(health);
+      box.dataset.availability = health?.availability || 'unknown';
+      box.querySelector('[data-health-state]').textContent = `Estado interno: ${health?.state ?? '—'}`;
+      for (const field of ['last_changed','last_updated','last_reported']) {
+        const time = box.querySelector(`[data-time="${field}"]`);
+        time.textContent = timestampText(health?.[field],timeZone);
+        if (health?.[field]) time.setAttribute('datetime',health[field]); else time.removeAttribute('datetime');
+      }
+    }
+    for (const el of this.shadowRoot.querySelectorAll('[data-current-state]')) {
+      const row = this.data.rows.find(row => `${row.kind}:${row.key}` === el.dataset.currentState);
+      if (row) el.textContent = `Ahora: ${sensorStateText(row)}`;
+    }
+  }
+  healthCard(row) {
+    const box = node('section',null,{class:'sensor-health','data-sensor-health':row.key});
+    box.append(node('h4','1. Estado del sensor'),node('strong','',{'data-availability':''}),node('p','',{'data-health-state':'',class:'muted'}));
+    const list = node('dl',null,{class:'health-times'});
+    for (const [field,label] of [['last_changed','Último cambio de estado'],['last_updated','Última actualización de estado o atributos'],['last_reported','Último registro en Home Assistant']]) {
+      const group = node('div');group.append(node('dt',label));
+      const value = node('dd');value.append(node('time','',{'data-time':field}));group.append(value);list.append(group);
+    }
+    box.append(list,node('p','La disponibilidad es la que comunica Home Assistant. Un registro no confirma un mensaje Zigbee ni una conexión física. Un sensor puede estar sano y llevar horas sin cambiar.',{class:'muted'}));
+    return box;
   }
   selectionStatus() {
     this.$('batch-tools').hidden = !this.selected.size;
@@ -158,7 +224,8 @@ class JackSignalPanel extends HTMLElement {
     this.$('panel-info').textContent = this.data.alarm ? `Panel vinculado: ${this.data.alarm}${this.data.alarm_available ? '' : ' · No disponible'}` : 'Sin panel Alarmo vinculado. Los avisos de sensores en modo «Siempre» funcionan igualmente.';
     this.shadowRoot.querySelectorAll('[data-kind]').forEach(btn => btn.setAttribute('aria-pressed',String(btn.dataset.kind === this.kind)));
     const query = fold(this.$('query').value), filter = this.$('filter').value;
-    const groups = noticeGroups(this.data.rows,this.kind,query,filter);
+    const groups = noticeGroups(this.data.rows,this.kind,query,filter,this.kind === 'alarm' ? 'all' : this.$('availability-filter').value);
+    this.$('availability-field').hidden = this.kind === 'alarm';
     this.$('results').textContent = `${groups.length} ${this.kind === 'alarm' ? (groups.length === 1 ? 'evento' : 'eventos') : (groups.length === 1 ? 'sensor' : 'sensores')}`;
     this.visibleRows = groups.slice(0,this.limit).flat();
     const visible = new Set(groups.slice(0,this.limit).map(group => `${this.kind}:${group[0].key}`));
@@ -171,6 +238,7 @@ class JackSignalPanel extends HTMLElement {
       if (this.dialog.open && this.editing?.key === group[0].key) continue;
       card.replaceChildren();
       const heading = node('header'); heading.append(node('h3',group[0].name),node('span',group[0].key,{class:'muted id'}));card.append(heading);
+      if (group[0].kind !== 'alarm') card.append(this.healthCard(group[0]));
       const file = group.find(row => row.kind === 'sensor'), voice = group.find(row => row.kind === 'speech');
       if (file?.configured && file.rule.enabled && voice?.configured && voice.rule.enabled && voice.rule.trigger !== 'manual' && [file.rule.on_open,file.rule.on_close].some(mode => mode !== 'never')) {
         card.append(node('p','Audio y voz pueden responder al mismo cambio. El audio de mayor prioridad puede impedir la voz. Desactiva el que no quieras usar; la prioridad de Alarmo se conserva.',{class:'warning'}));
@@ -185,13 +253,9 @@ class JackSignalPanel extends HTMLElement {
         check.addEventListener('change', () => {if(check.checked && this.selected.size < 200) this.selected.add(`${row.kind}:${row.key}`); else {this.selected.delete(`${row.kind}:${row.key}`); check.checked=false;} this.selectionStatus();});
         label.append(check,node('span',`Seleccionar ${row.kind === 'speech' ? 'voz' : 'audio'} de ${row.name}`)); article.append(label);
       }
-      article.append(node('h4',row.kind === 'sensor' ? 'Audio de archivo' : row.kind === 'speech' ? 'Voz del sensor' : 'Aviso de Alarmo'));
+      article.append(node('h4',row.kind === 'sensor' ? '2. Aviso de audio' : row.kind === 'speech' ? '2. Aviso de voz' : 'Aviso de Alarmo'));
       article.append(node('span',row.kind === 'speech' && row.configured && row.rule.enabled && row.rule.trigger === 'manual' ? 'Activado · Solo manual' : ({configured:'Activado',disabled:'Desactivado',unconfigured:'Sin configurar'})[row.status],{class:'badge'}));
-      if (row.kind !== 'alarm') {
-        let state = row.state ?? 'No disponible';
-        if (row.kind === 'sensor') state = row.state?.toLowerCase() === row.rule.open_state ? 'Abierto / activado' : row.state?.toLowerCase() === row.rule.closed_state ? 'Cerrado / desactivado' : state;
-        article.append(node('p',`Ahora: ${state}`,{class:'muted'}));
-      }
+      if (row.kind !== 'alarm') article.append(node('p',`Ahora: ${sensorStateText(row)}`,{class:'muted','data-current-state':`${row.kind}:${row.key}`}));
       const summary = node('div',null,{class:'summary'});
       if (row.kind === 'sensor') {
         summary.append(node('p',`Al abrir: ${soundName(row.rule.sound)} · ${modes[row.rule.on_open] || 'Nunca'}`),node('p',`Al cerrar: ${soundName(row.rule.close_sound)} · ${modes[row.rule.on_close] || 'Nunca'}`));
@@ -221,6 +285,7 @@ class JackSignalPanel extends HTMLElement {
       article.append(actions);
       }
     }
+    this.renderHealth();
     this.$('empty').hidden = groups.length !== 0; this.$('more').hidden = groups.length <= this.limit;
   }
   field(container,key,title,value,options={}) {

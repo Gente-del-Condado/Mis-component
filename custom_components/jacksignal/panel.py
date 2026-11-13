@@ -94,6 +94,18 @@ def speech_status(hass):
     return {key: manager.diagnostic(key) for key in manager.rules} if manager else {}
 
 
+def sensor_health(state):
+    """HA availability and timestamps, not a claim about physical connectivity."""
+    if state is None:
+        return {"availability": "missing", "state": None, "last_changed": None,
+                "last_updated": None, "last_reported": None}
+    return {"availability": state.state if state.state in {"unknown", "unavailable"} else "available",
+            "state": state.state,
+            "last_changed": state.last_changed.isoformat(),
+            "last_updated": state.last_updated.isoformat(),
+            "last_reported": state.last_reported.isoformat() if getattr(state, "last_reported", None) else None}
+
+
 def snapshot(hass, entry):
     rows = []
     voice_status = speech_status(hass)
@@ -110,6 +122,7 @@ def snapshot(hass, entry):
             configured = bool(key in rules if kind == "speech" else rule.get("sound") or rule.get("close_sound"))
             enabled = rule.get("enabled", True)
             rows.append({"kind": kind, "key": key, "name": EVENT_NAMES[key] if kind == "alarm" else state.name if state else key,
+                         "health": sensor_health(state) if kind != "alarm" else None,
                          "state": state.state if state else None, "unit": state.attributes.get("unit_of_measurement", "") if state else "", "configured": configured,
                          "status": "unconfigured" if not configured else "configured" if enabled else "disabled",
                          "speech_status": voice_status.get(key, ""),
@@ -250,7 +263,12 @@ async def handle(hass, entry, msg):
     if action == "tts_info":
         return voice_info(hass, msg.get("engine", ""), msg.get("language"), msg.get("voice"))
     if action == "status":
-        return {**playback_status(entry), "speech": speech_status(hass)}
+        entities = msg.get("entities", [])
+        if (not isinstance(entities, list) or len(entities) > 2000 or
+                any(not isinstance(key, str) or len(key) > 255 or key.partition(".")[0] not in {"sensor", "binary_sensor"} for key in entities)):
+            raise ValueError("La consulta de sensores no es válida (máximo 2000).")
+        return {**playback_status(entry), "speech": speech_status(hass),
+                "sensors": {key: sensor_health(hass.states.get(key)) for key in set(entities)}}
     if action == "batch":
         if msg.get("revision") != revision(entry.options):
             raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")
@@ -321,6 +339,7 @@ async def handle(hass, entry, msg):
 @websocket_api.websocket_command({vol.Required("type"): "jacksignal/manage", vol.Required("action"): str,
     vol.Optional("kind"): str, vol.Optional("key"): str, vol.Optional("revision"): str,
     vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str,
+    vol.Optional("entities"): [str],
     vol.Optional("engine"): str, vol.Optional("language"): str, vol.Optional("voice"): str,
     vol.Optional("apply_to_all"): bool, vol.Optional("targets"): [dict], vol.Optional("changes"): dict})
 @websocket_api.require_admin
