@@ -9,6 +9,7 @@ from homeassistant.core import Event, HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import selector
 
+from . import history
 from .alarm import AlarmSounds
 from .const import DOMAIN, PLATFORMS, Priority
 from .dlna import DlnaReceiver
@@ -26,6 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
     if not await hass.async_add_executor_job(shutil.which, "ffmpeg"):
         raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="ffmpeg_unavailable")
 
+    await history.async_setup(hass)
     playback = Playback(partial(entry.async_create_background_task, hass))
     entry.runtime_data = playback
     receiver = DlnaReceiver(playback, entry.entry_id)
@@ -33,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
         await receiver.configure(entry.options)
     except (OSError, ValueError) as err:
         await playback.close()
+        await history.async_stop(hass)
         raise ConfigEntryNotReady("Could not start the DLNA audio receiver") from err
     hass.data[DOMAIN] = receiver
 
@@ -46,12 +49,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) -
     async def stop(_event: Event) -> None:
         await receiver.close()
         await playback.close()
+        await history.async_stop(hass)
 
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:
         await receiver.close()
         await playback.close()
+        await history.async_stop(hass)
         hass.data.pop(DOMAIN, None)
         raise
     hass.services.async_register(
@@ -102,4 +107,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[Playback]) 
     if receiver := hass.data.pop(DOMAIN, None):
         await receiver.close()
     await entry.runtime_data.close()
+    await history.async_stop(hass)
     return True

@@ -130,7 +130,7 @@ def snapshot(hass, entry):
                          "suggested_state_labels": suggested_state_labels(state) if kind == "speech" else {},
                          "rule": rule, "effective": effective_rule(hass, rule, entry.options) if kind == "speech" else rule})
     panel = entry.options.get(ALARM)
-    return {"revision": revision(entry.options), "rows": rows, "playback": playback_status(entry), "alarm": panel,
+    return {"revision": revision(entry.options), "history_settings": history.settings(hass), "rows": rows, "playback": playback_status(entry), "alarm": panel,
             "alarm_available": bool(panel and hass.states.get(panel) and hass.states.get(panel).state not in {"unavailable", "unknown"}),
             "voice_defaults": general_voice(hass, entry.options), "piper_engines": piper_engines(hass),
             "supervisor": "hassio" in hass.config.components,
@@ -244,11 +244,21 @@ async def validate_rule(hass, kind, key, supplied, options=None):
 async def handle(hass, entry, msg):
     """Shared action implementation; the websocket boundary requires an admin."""
     action = msg["action"]
+    if action == "history_settings":
+        return {"settings": await history.configure(hass, msg["days"]) if "days" in msg else history.settings(hass)}
+    if action == "history_clear":
+        if msg.get("confirm") is not True or msg.get("scope") not in {"sensor", "all"}:
+            raise ValueError("Confirma el alcance del borrado del historial.")
+        key = msg.get("key", "")
+        if msg["scope"] == "sensor" and (not isinstance(key, str) or len(key) > 255 or key.partition(".")[0] not in {"sensor", "binary_sensor"}):
+            raise ValueError("Selecciona un sensor válido.")
+        removed = await history.clear(hass, key if msg["scope"] == "sensor" else None)
+        return {"removed": removed, "settings": history.settings(hass)}
     if action == "history":
         key = msg.get("key", "")
         if not isinstance(key, str) or len(key) > 255 or key.partition(".")[0] not in {"sensor", "binary_sensor"}:
             raise ValueError("Selecciona un sensor válido.")
-        return {"entries": history.entries(hass, key)}
+        return history.query(hass, key, msg.get("filters"), msg.get("limit", 50))
     if action == "defaults":
         if msg.get("revision") != revision(entry.options):
             raise ValueError("La configuración ha cambiado. Actualiza antes de guardar.")
@@ -276,8 +286,14 @@ async def handle(hass, entry, msg):
         history_keys = msg.get("history_keys", [])
         if not isinstance(history_keys, list) or len(history_keys) > 20 or any(key not in entities for key in history_keys):
             raise ValueError("Consulta como máximo 20 historiales de los sensores visibles.")
+        queries = msg.get("history_queries", [])
+        if not isinstance(queries, list) or len(queries) > 20 or any(not isinstance(q, dict) or q.get("key") not in entities for q in queries):
+            raise ValueError("Consulta como máximo 20 historiales de sensores visibles.")
+        results = {key: history.query(hass, key) for key in history_keys}
+        for q in queries:
+            results[q["key"]] = history.query(hass, q["key"], q.get("filters"), q.get("limit", 50))
         return {**playback_status(entry), "speech": speech_status(hass),
-                "history": {key: history.entries(hass, key) for key in history_keys},
+                "history": results,
                 "sensors": {key: sensor_health(hass.states.get(key)) for key in set(entities)}}
     if action == "batch":
         if msg.get("revision") != revision(entry.options):
@@ -357,6 +373,8 @@ async def handle(hass, entry, msg):
     vol.Optional("kind"): str, vol.Optional("key"): str, vol.Optional("revision"): str,
     vol.Optional("rule"): dict, vol.Optional("enabled"): bool, vol.Optional("field"): str,
     vol.Optional("entities"): [str], vol.Optional("history_keys"): [str],
+    vol.Optional("history_queries"): [dict], vol.Optional("filters"): dict, vol.Optional("limit"): int,
+    vol.Optional("days"): int, vol.Optional("scope"): str, vol.Optional("confirm"): bool,
     vol.Optional("engine"): str, vol.Optional("language"): str, vol.Optional("voice"): str,
     vol.Optional("apply_to_all"): bool, vol.Optional("targets"): [dict], vol.Optional("changes"): dict})
 @websocket_api.require_admin

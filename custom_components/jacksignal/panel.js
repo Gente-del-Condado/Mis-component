@@ -86,6 +86,7 @@ class JackSignalPanel extends HTMLElement {
         <div class="overview" aria-label="Resumen de avisos"><div class="metric"><strong id="count-active">—</strong>Activados</div><div class="metric"><strong id="count-disabled">—</strong>Desactivados</div><div class="metric"><strong id="count-empty">—</strong>Sin configurar</div><div class="metric" id="live">Consultando reproducción…</div></div>
         <div class="nav" role="group" aria-label="Tipo de aviso"><button type="button" data-kind="sensor" aria-pressed="true">Sensores</button><button type="button" data-kind="alarm" aria-pressed="false">Alarmo</button><button type="button" data-kind="speech" aria-pressed="false">Solo voz</button></div>
         <details id="voice-general" class="tip" hidden><summary>Configuración general de voz y Piper</summary><p id="voice-general-info"></p><div class="actions"><button id="voice-defaults" type="button">Configurar voz general</button><button id="piper-prepare" type="button">Preparar Piper</button><a class="button" href="/config/integrations/dashboard">Conectar Wyoming</a><a id="piper-app" class="button" href="/hassio/addon/core_piper/info">Abrir Piper</a></div><p id="piper-status" role="status"></p></details>
+        <details id="history-settings" class="tip"><summary id="history-settings-title">Historial: conservación y limpieza</summary><p id="history-settings-info"></p><form id="history-settings-form" aria-labelledby="history-settings-title"><div class="field"><label for="history-days">Días de conservación (1–365)</label><input id="history-days" name="days" type="number" min="1" max="365" step="1" required></div><p>Reducir los días elimina los registros más antiguos. Se mantiene un máximo de 1.000 registros entre todos los sensores, aunque no se haya alcanzado el plazo.</p><button id="history-save" type="submit">Guardar y aplicar retención</button></form><div id="history-clear-all"></div><p id="history-settings-message" role="status"></p></details>
         <p id="connection-status" class="muted" role="status">Consultando el estado de los sensores…</p><search aria-label="Buscar avisos"><div class="filters"><div class="field"><label for="query">Buscar por nombre, sensor o sonido</label><input id="query" type="search" name="query" placeholder="Por ejemplo, ventana del salón" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="filter">Mostrar</label><select id="filter" name="filter"><option value="all">Todos</option><option value="configured">Configurados y activados</option><option value="unconfigured">Sin configurar</option><option value="disabled">Desactivados</option></select></div><div class="field" id="availability-field"><label for="availability-filter">Disponibilidad del sensor</label><select id="availability-filter" name="availability"><option value="all">Todas</option><option value="available">Disponible</option><option value="unavailable">No disponible</option><option value="unknown">Estado desconocido</option><option value="missing">Entidad no encontrada</option></select></div></div></search>
         <div class="actions"><button id="compact" type="button" aria-pressed="true">Vista compacta</button><button id="select-visible" type="button">Seleccionar configurados visibles</button><button id="clear-selection" type="button">Quitar selección</button></div>
         <div id="batch-tools" class="actions" hidden><span id="selection-count"></span><button id="batch-edit" type="button">Modificar selección</button></div>
@@ -113,6 +114,9 @@ class JackSignalPanel extends HTMLElement {
     this.$('select-visible').addEventListener('click', () => {for (const row of this.visibleRows || []) if (row.configured && this.selected.size < 200) this.selected.add(`${row.kind}:${row.key}`); this.renderList();});
     this.$('voice-defaults').addEventListener('click', () => this.editDefaults());
     this.$('piper-prepare').addEventListener('click', () => this.preparePiper());
+    this.$('history-days').addEventListener('input',()=>{this.historyDaysDirty=true;});
+    this.$('history-settings-form').addEventListener('submit',e=>{e.preventDefault();this.saveHistorySettings();});
+    this.$('history-clear-all').append(this.historyDeleteControls('all',null,async()=>{for(const box of this.shadowRoot.querySelectorAll('details[data-history]')) this.renderHistory(box,[],0);}));
     this.$('batch-edit').addEventListener('click', () => this.editBatch());
   }
   set hass(value) {
@@ -129,7 +133,7 @@ class JackSignalPanel extends HTMLElement {
   async pollStatus() {
     if (!this._hass || document.hidden || this.statusPending) return;
     this.statusPending = true;
-    try {this.renderStatus(await this.request({action:'status',history_keys:[...this.shadowRoot.querySelectorAll('details[data-history][open]')].map(box=>box.dataset.history).filter(key=>(this.visibleRows || []).some(row=>row.key===key)).slice(0,20),entities:[...new Set((this.visibleRows || []).filter(row => row.kind !== 'alarm').map(row => row.key))].slice(0,2000)})); this.connectionStatus('Estados actualizados cada 5 segundos · Pulsa Actualizar para recalcular la lista filtrada');}
+    try {this.renderStatus(await this.request({action:'status',history_queries:[...this.shadowRoot.querySelectorAll('details[data-history][open]')].filter(box=>(this.visibleRows || []).some(row=>row.key===box.dataset.history)).slice(0,20).map(box=>this.historyRequest(box)),entities:[...new Set((this.visibleRows || []).filter(row => row.kind !== 'alarm').map(row => row.key))].slice(0,2000)})); this.connectionStatus('Estados actualizados cada 5 segundos · Pulsa Actualizar para recalcular la lista filtrada');}
     catch {this.$('live').textContent = 'Estado de reproducción no disponible'; this.connectionStatus('No se pudo actualizar. Los datos mostrados pueden estar desactualizados. Revisa la conexión con Home Assistant.');}
     finally {this.statusPending = false;}
   }
@@ -140,7 +144,7 @@ class JackSignalPanel extends HTMLElement {
   renderStatus(status) {
     if (!status) return;
     for (const [key,items] of Object.entries(status.history || {})) {
-      for (const box of this.shadowRoot.querySelectorAll('details[data-history]')) if (box.dataset.history === key && box.open) this.renderHistory(box,items);
+      for (const box of this.shadowRoot.querySelectorAll('details[data-history]')) if (box.dataset.history === key && box.open) this.renderHistory(box,items.entries || items,items.total);
     }
     if (status.sensors && this.data) {
       for (const row of this.data.rows) if (status.sensors[row.key]) {row.health = status.sensors[row.key]; row.state = row.health.state;}
@@ -182,7 +186,42 @@ class JackSignalPanel extends HTMLElement {
     box.append(list,node('p','La disponibilidad es la que comunica Home Assistant. Un registro no confirma un mensaje Zigbee ni una conexión física. Un sensor puede estar sano y llevar horas sin cambiar.',{class:'muted'}));
     return box;
   }
-  renderHistory(box,items) {
+  historyRequest(box) {
+    return {key:box.dataset.history,limit:box.historyLimit || 50,filters:Object.fromEntries(Object.entries(box.historyFilters || {}).map(([key,input])=>[key,key==='days'?Number(input.value):input.value]))};
+  }
+  historySettingsInfo(settings) {
+    if (!settings) return;
+    if (this.data) this.data.history_settings=settings;
+    this.$('history-settings-info').textContent = `Conservación: ${settings.days} días · ${settings.count} registros guardados · Máximo ${settings.maximum}. ${settings.persistent ? 'Almacenamiento local de Home Assistant.' : 'Almacenamiento persistente no disponible; recarga JackSignal.'}`;
+    if (!this.historyDaysDirty) this.$('history-days').value=settings.days;
+  }
+  async saveHistorySettings() {
+    if (!this.$('history-settings-form').reportValidity()) return;
+    this.$('history-save').disabled=true;
+    try {
+      const result=await this.request({action:'history_settings',days:Number(this.$('history-days').value)});
+      this.historyDaysDirty=false;this.historySettingsInfo(result.settings);
+      this.$('history-settings-message').textContent='Retención guardada. Los registros fuera del plazo se han eliminado.';
+      await this.pollStatus();
+    } catch(err) {this.$('history-settings-message').textContent=this.error(err);}
+    finally {this.$('history-save').disabled=false;}
+  }
+  historyDeleteControls(scope,key,after) {
+    const details=node('details');details.append(node('summary',scope==='all'?'Borrar todo el historial':'Borrar historial de este sensor'));
+    details.append(node('p',scope==='all'?'Se borrarán todos los registros de todos los sensores. No cambia las reglas ni detiene el audio.':'Se borrarán todos los registros de este sensor, también los ocultos por los filtros. No cambia sus avisos.'));
+    const label=node('label',null,{class:'check'}),confirm=node('input',null,{type:'checkbox'});
+    const id=`history-confirm-${scope}-${this.kind}-${key || 'all'}`;confirm.id=id;label.setAttribute('for',id);label.append(confirm,node('span','Confirmo que quiero borrar estos registros. Esta acción no se puede deshacer.'));details.append(label);
+    const button=node('button',scope==='all'?'Confirmar borrado completo':'Confirmar borrado del sensor',{type:'button'}),message=node('p','',{role:'status'});
+    button.addEventListener('click',async()=>{
+      if(!confirm.checked){message.textContent='Marca la confirmación antes de borrar.';confirm.focus();return;}
+      button.disabled=true;
+      try{const result=await this.request({action:'history_clear',scope,...(scope==='sensor'?{key}:{}),confirm:true});this.historySettingsInfo(result.settings);confirm.checked=false;await after();message.textContent=`Borrados ${result.removed} registros.`;}
+      catch(err){message.textContent=this.error(err);}
+      finally{button.disabled=false;}
+    });
+    details.append(button,message);return details;
+  }
+  renderHistory(box,items,total=items.length) {
     const list = box.querySelector('ol');list.replaceChildren();
     const names = {preparing:'Preparando',started:'Reproducción iniciada',completed:'Finalizada sin errores',interrupted:'Interrumpida',omitted:'Omitido',error:'Error'};
     for (const item of items) {
@@ -194,25 +233,39 @@ class JackSignalPanel extends HTMLElement {
       line.append(node('p',item.reason));list.append(line);
     }
     const message = box.querySelector('[data-history-message]');
-    const text = items.length ? `${items.length} registros, del más reciente al más antiguo.` : 'Sin avisos registrados para este sensor desde el arranque. Si no llegan cambios a Home Assistant, JackSignal no puede registrar un intento automático.';
+    const text = items.length ? `${items.length} de ${total} registros coincidentes, del más reciente al más antiguo.` : 'No hay registros que coincidan con estos filtros y la retención. Si no llegan cambios a Home Assistant, JackSignal no puede registrar un intento automático.';
+    const more=box.querySelector('[data-history-more]');if(more) more.hidden=items.length>=total;
     if (message.textContent !== text) message.textContent = text;
   }
   historyCard(row) {
     const box = node('details',null,{class:'history','data-history':row.key});
     box.append(node('summary','3. Historial de avisos'));
-    box.append(node('p','Últimos 50 registros de este sensor; máximo 1.000 entre todos. Se conserva al editar avisos y se vacía al reiniciar Home Assistant. Finalizada sin errores significa que FFmpeg terminó correctamente, no que se haya comprobado sonido físico.',{class:'muted'}));
+    box.append(node('p','Historial guardado en Home Assistant según los días de conservación, con un máximo global de 1.000 registros. Los filtros se aplican a todo el historial conservado. Finalizada sin errores confirma el resultado de FFmpeg, no el sonido físico.',{class:'muted'}));
+    box.historyLimit=50;box.historyFilters={};
+    const filters=node('search',null,{class:'filters','aria-label':`Filtros del historial: ${row.name}`});
+    const choices={status:[['all','Todos los resultados'],['preparing','Preparando'],['started','Reproducción iniciada'],['completed','Finalizada sin errores'],['interrupted','Interrumpida'],['omitted','Omitido'],['error','Error']],kind:[['all','Audio y voz'],['voice','Voz'],['audio','Audio']],priority:[['all','Todas las prioridades'],...Object.entries(labels)],days:[['0','Todo lo conservado'],['1','Últimas 24 horas'],['7','Últimos 7 días'],['30','Últimos 30 días'],['365','Último año']]};
+    for(const [key,title] of [['status','Resultado'],['kind','Tipo de aviso'],['priority','Prioridad'],['days','Periodo'],['text','Buscar en origen, motivo o estado']]) {
+      const field=node('div',null,{class:'field'}),id=`history-${this.kind}-${row.key}-${key}`;
+      const input=node(key==='text'?'input':'select',null,{id,name:key});
+      if(key==='text'){input.type='search';input.maxLength=200;}else for(const [value,label] of choices[key]) input.append(node('option',label,{value}));
+      field.append(node('label',title,{for:id}),input);filters.append(field);box.historyFilters[key]=input;
+      input.addEventListener('change',()=>{box.historyLimit=50;refresh();});
+    }
+    box.append(filters);
     const button = node('button','Actualizar historial',{type:'button','aria-label':`Actualizar historial: ${row.name}`});
     const message = node('p','',{'data-history-message':'',role:'status'});
     const refresh = async () => {
       if (button.disabled) return;
       button.disabled = true;
-      try {const response = await this.request({action:'history',key:row.key});this.renderHistory(box,response.entries);}
+      try {const response = await this.request({action:'history',...this.historyRequest(box)});this.renderHistory(box,response.entries,response.total);}
       catch(err) {message.textContent = `No se pudo actualizar el historial. ${this.error(err)}`;}
       finally {button.disabled = false;}
     };
     button.addEventListener('click',refresh);
     box.addEventListener('toggle',() => {if (box.open) refresh();});
-    box.append(button,message,node('ol',null,{class:'history-list'}));
+    const more=node('button','Mostrar 50 más',{type:'button','data-history-more':'',hidden:''});
+    more.addEventListener('click',()=>{box.historyLimit=Math.min(1000,box.historyLimit+50);refresh();});
+    box.append(button,message,node('ol',null,{class:'history-list'}),more,this.historyDeleteControls('sensor',row.key,refresh));
     return box;
   }
   selectionStatus() {
@@ -249,6 +302,7 @@ class JackSignalPanel extends HTMLElement {
   renderList() {
     if (!this.data) return;
     this.renderStatus(this.data.playback);
+    this.historySettingsInfo(this.data.history_settings);
     this.$('voice-general').hidden = this.kind === 'alarm';
     const general = this.data.voice_defaults || {speed:1};
     const engineLabel = this.data.engines.find(item => item.value === general.engine)?.label;
