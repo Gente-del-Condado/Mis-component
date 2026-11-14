@@ -24,7 +24,7 @@ builds from the wider module graph, and npm build dependencies.
 Server build sources are included as source.tar.gz in the Home Assistant app
 and as payload/source.tar.gz in the YunoHost package. SOURCE.md in each archive
 explains how to compile it. Public source download:
-https://github.com/Gente-del-Condado/headscale-gateway_ynh/blob/main/payload/source.tar.gz
+https://github.com/Gente-del-Condado/headscale_gateway_ynh/blob/main/payload/source.tar.gz
 
 Do not remove notices from distributions. No production credentials,
 issuer private keys or customer data belong in a source or binary release.
